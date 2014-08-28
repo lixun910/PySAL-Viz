@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link type="text/css" rel="stylesheet" href="http://mbostock.github.io/d3/talk/20111116/style.css"/>
+<style type="text/css">
+svg {
+  font-size: 14px;
+}
+
+.axis {
+  shape-rendering: crispEdges;
+}
+
+.axis line {
+  stroke: #ddd;
+  stroke-width: .5px;
+}
+
+.axis path {
+  display: none;
+}
+
+rect.extent {
+  fill: #000;
+  fill-opacity: .125;
+  stroke: #fff;
+}
+
+rect.frame {
+  fill: #fff;
+  fill-opacity: .7;
+  stroke: #aaa;
+}
+
+circle {
+  fill: #fff;
+  stroke: blue;
+  fill-opacity: .5;
+}
+
+.legend circle {
+  fill-opacity: 1;
+}
+
+.legend text {
+  font-size: 18px;
+  font-style: oblique;
+}
+
+.cell text {
+  pointer-events: none;
+}
+
+.setosa {
+  fill: #800;
+}
+
+.selected {
+  fill: red;
+}
+
+.unselected {
+  fill: #fff;
+}
+</style>
+<script src="js/jquery.min.js"></script>
+<script src="js/d3.v3.min.js"></script>
+  
+<script>
+$(document).ready(function() {
+
+  //////////////////////////////////////////////////////////////
+  // Local Storage Brushing/Linking
+  //////////////////////////////////////////////////////////////
+  localStorage.clear();
+  $(window).bind('storage', function(e) {
+    var uuid = localStorage.getItem('HL_LAYER');
+    
+    if ( uuid in window.opener.layerDict ) {
+      var select_ids = localStorage.getItem('HL_IDS').split(",");
+      for ( var i=0; i<select_ids.length; i++ ) {
+        select_ids[i] = parseInt(select_ids[i]);
+      }
+      var layer = window.opener.layerDict[uuid];
+      layer.basemap.highlight(select_ids);
+      for (var i=0, n=layer.maps.length; i< n; i++) {
+        layer.maps[i].highlight(select_ids);
+      }
+      for (var i=0, n=layer.plots.length; i< n; i++) {
+        layer.plots[i].highlight(select_ids);
+      }
+    }
+  });
+  
+  //////////////////////////////////////////////////////////////
+  // Create Scatter Plot
+  //////////////////////////////////////////////////////////////
+  var msg = window.opener.tempMsg,
+      uuid = msg.uuid, //getParameterByName("uuid"),
+      title = msg.title,
+      fields = msg.fields,
+      layerDict = window.opener.layerDict;
+   
+  localStorage["HL_LAYER"] = uuid;
+  var svg_w = 600, 
+      svg_h = 500;
+      
+  //window.opener.tempMsg = undefined;
+  console.log(msg);  
+  if ( uuid in layerDict) {
+    var layer = layerDict[uuid];
+    var json = layer.data;
+    var flowers = [];
+    json.features.forEach(function(feat){flowers.push(feat.properties);});
+    
+    // Position scales.
+    var x = {}, y = {};
+    var traits = fields;
+    var n = traits.length;
+    
+    // Size parameters.
+    var padding = 10;
+    var size = (svg_h - 12 * n) / n;
+  
+    traits.forEach(function(trait) {
+      // Coerce values to numbers.
+      flowers.forEach(function(d) { d[trait] = +d[trait]; });
+      var value = function(d) { return d[trait]; },
+          domain = [d3.min(flowers, value), d3.max(flowers, value)],
+          range = [padding / 2, size - padding / 2];
+      x[trait] = d3.scale.linear().domain(domain).range(range);
+      y[trait] = d3.scale.linear().domain(domain).range(range.reverse());
+    });
+  
+    // Axes.
+    var axis = d3.svg.axis()
+        .ticks(5)
+        .tickSize(size * n);
+  
+    // Brush.
+    var brush = d3.svg.brush()
+        .on("brushstart", brushstart)
+        .on("brush", brush)
+        .on("brushend", brushend);
+  
+    // Root panel.
+    var svg = d3.select("body").append("svg:svg")
+        .attr("width", svg_w)
+        .attr("height", svg_h)
+      .append("svg:g")
+        .attr("transform", "translate(9.5,9.5)");
+  
+    // X-axis.
+    svg.selectAll("g.x.axis")
+        .data(traits)
+      .enter().append("svg:g")
+        .attr("class", "x axis")
+        .attr("transform", function(d, i) { return "translate(" + i * size + ",0)"; })
+        .each(function(d) { d3.select(this).call(axis.scale(x[d]).orient("bottom")); });
+  
+    // Y-axis.
+    svg.selectAll("g.y.axis")
+        .data(traits)
+      .enter().append("svg:g")
+        .attr("class", "y axis")
+        .attr("transform", function(d, i) { return "translate(0," + i * size + ")"; })
+        .each(function(d) { d3.select(this).call(axis.scale(y[d]).orient("right")); });
+  
+    // Cell and plot.
+    var cell = svg.selectAll("g.cell")
+        .data(cross(traits, traits))
+      .enter().append("svg:g")
+        .attr("class", "cell")
+        .attr("transform", function(d) { return "translate(" + d.i * size + "," + d.j * size + ")"; })
+        .each(plot);
+  
+    // Titles for the diagonal.
+    cell.filter(function(d) { return d.i == d.j; }).append("svg:text")
+        .attr("x", padding)
+        .attr("y", padding)
+        .attr("dy", ".71em")
+        .text(function(d) { return d.x; });
+  
+    function plot(p) {
+      var cell = d3.select(this);
+  
+      // Plot frame.
+      cell.append("svg:rect")
+          .attr("class", "frame")
+          .attr("x", padding / 2)
+          .attr("y", padding / 2)
+          .attr("width", size - padding)
+          .attr("height", size - padding);
+  
+      // Plot dots.
+      cell.selectAll("circle")
+          .data(flowers)
+        .enter().append("svg:circle")
+          .attr("class", function(d) { return d.FIPS; })
+          .attr("cx", function(d) { return x[p.x](d[p.x]); })
+          .attr("cy", function(d) { return y[p.y](d[p.y]); })
+          .attr("id", function(d,i) { return i; })
+          .attr("r", 3);
+  
+      // Plot brush.
+      cell.call(brush.x(x[p.x]).y(y[p.y]));
+    }
+  
+    // Clear the previously-active brush, if any.
+    function brushstart(p) {
+      if (brush.data !== p) {
+        cell.call(brush.clear());
+        brush.x(x[p.x]).y(y[p.y]).data = p;
+      }
+    }
+  
+    // Highlight the selected circles.
+    function brush(p) {
+      var e = brush.extent();
+      var select_ids = {};
+      svg.selectAll(".cell circle").attr("class", function(d) {
+        if (e[0][0] <= d[p.x] && d[p.x] <= e[1][0]
+            && e[0][1] <= d[p.y] && d[p.y] <= e[1][1]) {
+            var id = $(this).attr("id");
+            if (id) {
+              select_ids[id] = undefined;
+            }
+            return "selected";
+        }
+        return null;
+      });
+      if (select_ids) {
+        var hl = "";
+        for(var k in select_ids) {
+          hl = hl + k + ","
+        }
+        localStorage.setItem('HL_IDS', hl);
+      } else {
+        localStorage.setItem('HL_IDS', "");
+      }
+    }
+  
+    // If the brush is empty, select all circles.
+    function brushend() {
+      if (brush.empty()) {
+        svg.selectAll(".cell circle").attr("class", function(d) {
+          return d.species;
+        });
+        localStorage.setItem('HL_IDS', "");
+      }
+    }
+  
+    function cross(a, b) {
+      var c = [], n = a.length, m = b.length, i, j;
+      for (i = -1; ++i < n;) for (j = -1; ++j < m;) c.push({x: a[i], i: i, y: b[j], j: j});
+      return c;
+    }
+  }
+
+});
+</script>
+</head>
+<body>
+</body>
+</html>

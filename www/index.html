@@ -29,6 +29,8 @@ layerDict
   }
 */
 var layerDict = {};
+var socket;
+var tempMsg;
 
 $(document).ready(function() {
   //////////////////////////////////////////////////////////////
@@ -67,37 +69,40 @@ $(document).ready(function() {
     socket.onmessage = function(e) {
       try {
         msg = JSON.parse(e.data);
+        tempMsg = msg;
+        console.log(msg);
         switch ( msg.command ) {
           case "add_layer":
-            /*
-              { 
-                command: "add_layer", 
-                content: 
-                {
-                  uuid: "xxffddgg",
-                  uri: "http://localhost:8000/test.json",
-                }
-              }
-            */
-            var uuid = add_layer( msg.content );
-            socket.send('{"command":"add_layer", "uuid":"' + uuid + '"}');
+            add_layer(msg);
+            socket.send('{"command":"add_layer", "response":"OK"}');
             break;
           case "remove_layer":
             break;
           case "select":
+            var uuid = msg["uuid"];
+            var ids = msg["data"];
+            select(msg);
+            socket.send("OK");
             break;
           case "clear_select":
             break;
-          case "get_select":
-            var msg = {
-              "response": "get_select",
-              "content": {}
-            };
-            socket.send( msg );
+          case "get_selected":
+            var uuid = msg["uuid"];
+            if (uuid == localStorage.getItem('HL_LAYER')) {
+              var select_ids = localStorage.getItem('HL_IDS');
+              var rsp = '{"uuid":"'+uuid+'","ids":"'+select_ids+'"}';
+              socket.send(rsp);
+            }
             break;
           case "classless_map":
             break;
+          case "lisa_map":
+            lisa_map(msg);
+            socket.send("OK");
+            break;
           case "quantile_map":
+            quantile_map(msg);
+            socket.send("OK");
             break;
           case "equal_interval_map":
             break;
@@ -105,24 +110,16 @@ $(document).ready(function() {
             break;
           case "histogram":
             break;
-          case "scatter_plot":
-            /*
-              { 
-                command: "scatter_plot", 
-                content: 
-                {
-                  uuid: "xxffddgg",
-                  data: "http://localhost:8000/test.json",
-                }
-              }
-            */
+          case "scatter_plot_matrix":
+            scatter_plot_matrix(msg); 
+            socket.send("OK");
             break;
           case "pcp":
             break;
           default:
         };
       } catch (err) {
-        console.error("Parsing server msg error:", err);            
+        console.error("Parsing server msg error:", msg, err);            
       }
     }
   };
@@ -177,26 +174,32 @@ $(document).ready(function() {
   var quantile_map = function(o) {
     //Let's try the popup window first.
     var w = window.open(
-      'map.html?uuid=abcd1234&type=quantile&vars=',
-      "Quantile Map",
-      "width=600, height=400, scrollbars=yes"
+      'map.html?type=quantile',
+      "_blank",
+      "width=600, height=500, scrollbars=yes"
     );
     //The layerDict can be accessed by quantile_map pop-up window.
     //The newly creately quantile map will be added to layerDict[uuid].maps.
   };
  
-  /* 
-  quantile_map();
-  console.log("after quntile:", layerDict);
-  */
+  var lisa_map = function(o) {
+    //Let's try the popup window first.
+    var w = window.open(
+      'map.html?type=lisa',
+      "_blank",
+      "width=600, height=500, scrollbars=yes"
+    );
+    //The layerDict can be accessed by quantile_map pop-up window.
+    //The newly creately quantile map will be added to layerDict[uuid].maps.
+  };
   /*
   For scatter plot, the table data should be used. 
   */
-  var scatter_plot = function(o) {
+  var scatter_plot_matrix = function(o) {
     var w = window.open(
-      'plot.html?uuid=abcd1234&type=scatter&vars=', 
-      "",
-      "width=600, height=400, scrollbars=yes"
+      'scatterplot.html', 
+      "_blank",
+      "width=600, height=500, scrollbars=yes"
     );
     //The newly creately scatter plot will be added to layerDict[uuid].plots.
   };
@@ -208,6 +211,9 @@ $(document).ready(function() {
   var select = function(o) {
     for(var uuid in layerDict) {
       if ( uuid == o.uuid ) { 
+        var basemap = layerDict[uuid].basemap;
+        console.log(basemap, o.data);
+        basemap.highlight(o.data);
         for(var map in layerDict[uuid].maps) {
           map.highlight(o.data);
         }
@@ -236,6 +242,6 @@ $(document).ready(function() {
 </head>
 
 <body>
-<div id="map-container" style="border: 1px solid red;height: 100px;"></div>
+<div id="map-container" style="border: 0px solid red;height: 100px;"></div>
 </body>
 </html>

@@ -28,7 +28,7 @@ GRect.prototype = {
   },
 };
 
-var GeoVizMap = function(geojson, mapcanvas, extent) {
+var GeoVizMap = function(geojson, mapcanvas, color_theme, id_category, extent) {
   // private members
   this.HLT_BRD_CLR = "black";
   this.HLT_CLR = "yellow";
@@ -44,6 +44,8 @@ var GeoVizMap = function(geojson, mapcanvas, extent) {
   this.mapcanvas.height = this.height;
   this.shpType = geojson.features[0].geometry.type;
   
+  this.color_theme = color_theme;
+  this.id_category = id_category;
   this.bbox = [];
   this.centroids = [];
   this.extent = extent;
@@ -114,6 +116,12 @@ GeoVizMap.prototype = {
     this.scalePY = d3.scale.linear()
                   .domain([this.height - this.offsetY * 2, 0])
                   .range([this.extent[2], this.extent[3]]);
+  },
+  
+  updateColor: function(colorbrewer_obj) {
+    this.color_theme  = colorbrewer_obj;
+    this.draw();
+    this.buffer = this.createBuffer(this.mapcanvas);
   },
   
   mapToScreen: function(px,py) {
@@ -243,15 +251,31 @@ GeoVizMap.prototype = {
     context.imageSmoothingEnabled= false;
     context.lineWidth = _self.LINE_WIDTH;
 
-    var that = this;
-    if (this.shpType == "Polygon") {
-      this.geojson.features.forEach( function(feat,i) {
-        that.drawPolygon( context, feat, that.STROKE_CLR, that.FILL_CLR );
-      });
-    } else if (this.shpType == "Point" || this.shpType == "MultiPoint") {
-      this.geojson.features.forEach( function(feat,i) {
-        that.drawPoint( context, feat, that.STROKE_CLR, that.FILL_CLR );
-      });
+    if (this.color_theme == undefined) {
+      var that = this;
+      if (this.shpType == "Polygon") {
+        this.geojson.features.forEach( function(feat,i) {
+          that.drawPolygon( context, feat, that.STROKE_CLR, that.FILL_CLR );
+        });
+      } else if (this.shpType == "Point" || this.shpType == "MultiPoint") {
+        this.geojson.features.forEach( function(feat,i) {
+          that.drawPoint( context, feat, that.STROKE_CLR, that.FILL_CLR );
+        });
+      }
+    } else {
+      var that = this;
+      for (var i=0, n= that.color_theme.length; i < n; i++) {
+        var color = that.color_theme[i];
+        for (var j=0, m=that.id_category[i].length; j < m; j++) {
+          var id = that.id_category[i][j],
+              feat = that.geojson.features[id];
+          if (that.shpType == "Polygon") {
+            that.drawPolygon(context, feat, that.STROKE_CLR, color);
+          } else if (this.shpType == "Point" || this.shpType == "MultiPoint") {
+            that.drawPoint( context, feat, that.STROKE_CLR, color);
+          }
+        }
+      }
     }
   }, 
   
