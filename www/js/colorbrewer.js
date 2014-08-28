@@ -1,7 +1,5 @@
 // This product includes color specifications and designs developed by Cynthia Brewer (http://colorbrewer.org/).
-var colorbrewer = {Lisa:{
-5: ['white','darkred','lightsalmon','darkblue','lightblue'],
-},
+var colorbrewer = {
 YlGn: {
 3: ["#f7fcb9","#addd8e","#31a354"],
 4: ["#ffffcc","#c2e699","#78c679","#238443"],
@@ -302,4 +300,8 @@ YlGn: {
 10: ["#8dd3c7","#ffffb3","#bebada","#fb8072","#80b1d3","#fdb462","#b3de69","#fccde5","#d9d9d9","#bc80bd"],
 11: ["#8dd3c7","#ffffb3","#bebada","#fb8072","#80b1d3","#fdb462","#b3de69","#fccde5","#d9d9d9","#bc80bd","#ccebc5"],
 12: ["#8dd3c7","#ffffb3","#bebada","#fb8072","#80b1d3","#fdb462","#b3de69","#fccde5","#d9d9d9","#bc80bd","#ccebc5","#ffed6f"]
-}};
+},
+Lisa:{
+5: ['white','darkred','lightsalmon','darkblue','lightblue'],
+}
+};

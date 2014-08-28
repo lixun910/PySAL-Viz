@@ -1,7 +1,7 @@
 import pysal
 import numpy as np
 import os.path
-import json, shutil, webbrowser
+import json, shutil, webbrowser, md5
 from uuid import uuid4
 from websocket import create_connection
 import shapefile
@@ -16,17 +16,41 @@ def setup(ws_address):
     global WS_SERVER
     WS_SERVER = ws_address
 
+def getuuid(shp):
+    """
+    Generate UUID using absolute path of shapefile
+    """
+    return md5.md5(shp.dataPath).hexdigest()
+    
 def shp2json(shp):
+    """
+    Create a GeoJson file from pysal.shp object and store it in www/ path.
+    Which can be visited using http://localhost:8000/*.json
+    """
     reader = shapefile.Reader(shp.dataPath)
     fields = reader.fields[1:]
     field_names = [field[0] for field in fields]
     buffer = []
-    for sr in reader.shapeRecords():
+    for i, sr in enumerate(reader.shapeRecords()):
+        field_names.append("GEODAID")
+        sr.record.append(i)
         atr = dict(zip(field_names, sr.record))
         geom = sr.shape.__geo_interface__
         buffer.append(dict(type="Feature", geometry=geom, properties=atr))
+        
+    global SHP_DICT
+    if not shp in SHP_DICT:
+        SHP_DICT[shp] = getuuid(shp)
+    uuid = SHP_DICT[shp]
     
-    return {"type": "FeatureCollection","features": buffer}
+    current_path = os.path.realpath(__file__)    
+    www_path = "%s/../www/%s.json" % \
+        (current_path[0:current_path.rindex('/')], uuid)
+   
+    if not os.path.exists(www_path): 
+        geojson = open(www_path, "w")
+        geojson.write(json.dumps({"type": "FeatureCollection","features": buffer}))
+        geojson.close()
 
 def lzwJson(json):
     codes = dict([(chr(x), x) for x in range(256)])
@@ -60,10 +84,6 @@ def show_map(shp):
     
     To create a scatter plot, users need to 
     """
-    global SHP_DICT
-    if not shp in SHP_DICT:
-        SHP_DICT[shp] = str(uuid4())
-        
     #url = "http://127.0.0.1:8000/%s" % "index.html"
     #webbrowser.open_new(url)
      
@@ -71,6 +91,7 @@ def show_map(shp):
     
     global WS_SERVER 
     ws = create_connection(WS_SERVER)
+    global SHP_DICT
     uuid = SHP_DICT[shp]
     
     msg = {
@@ -128,7 +149,7 @@ def select(shp, ids=[]):
     print "receive:", rsp
     ws.close()
     
-def quantile_map(shp, dbf, var, k):
+def quantile_map(shp, dbf, var, k, basemap=None):
     y = dbf.by_col[var]
     q = pysal.esda.mapclassify.Quantiles(np.array(y), k=k)    
     bins = q.bins
@@ -152,6 +173,9 @@ def quantile_map(shp, dbf, var, k):
         "bins": bins.tolist(),
         "data": id_array,
     }
+    if basemap:
+        msg["basemap"] = basemap
+        
     str_msg = json.dumps(msg)
     ws.send(str_msg)
     print "send:", str_msg
@@ -163,10 +187,11 @@ def lisa_map(shp, var, w):
     y = dbf.by_col[var]
     lm = pysal.Moran_Local(np.array(y), w)
      
-    bins = ["NotSig","HH","LH","LL","HL"]
+    bins = ["Not Significant","High-High","Low-High","Low-Low","Hight-Low"]
     id_array = []
     for j in range(5): 
-        id_array.append([i for i,v in enumerate(lm.q) if v == j])
+        id_array.append([i for i,v in enumerate(lm.q) \
+                         if v == j and lm.p_sim[i] < 0.05])
     
     global SHP_DICT 
     uuid = SHP_DICT[shp]
@@ -208,24 +233,26 @@ def scatter_plot_matrix(shp, fields):
     ws.close()
     
 # Test
-shp = pysal.open(pysal.examples.get_path('columbus.shp'),'r')
-dbf = pysal.open(pysal.examples.get_path('columbus.dbf'),'r')
+shp = pysal.open(pysal.examples.get_path('NAT.shp'),'r')
+dbf = pysal.open(pysal.examples.get_path('NAT.dbf'),'r')
 show_map(shp)
+
+quantile_map(shp, dbf, "HC60", 5, basemap="leaflet_map")
 
 #ids = get_selected(shp)
 #print ids
 
-select_ids = [i for i,v in enumerate(dbf.by_col["CRIME"]) if v < 20.0]
+select_ids = [i for i,v in enumerate(dbf.by_col["HC60"]) if v < 20.0]
 select(shp, ids=select_ids)
 
 
-quantile_map(shp, dbf, "CRIME", 5)
+quantile_map(shp, dbf, "HC60", 5)
 
 
-w = pysal.rook_from_shapefile(pysal.examples.get_path('columbus.shp'))
-lisa_map(shp, "CRIME", w)
+w = pysal.rook_from_shapefile(pysal.examples.get_path('NAT.shp'))
+lisa_map(shp, "HC60", w)
 
-scatter_plot_matrix(shp, ["CRIME", "INC"])
+scatter_plot_matrix(shp, ["HC60", "HC70"])
     
 #show_table(shp)
     

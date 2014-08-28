@@ -10,6 +10,9 @@ body {
   font-size: 82.5%;
 }
 </style>
+<link rel="stylesheet" href="css/leaflet.css" />
+
+<script src="js/leaflet.js"></script>
 <script src="js/jquery.min.js"></script>
 <script src="js/d3.v3.min.js"></script>
 <script src="js/colorbrewer.js"></script>
@@ -17,7 +20,7 @@ body {
 <script src="js/utils.js"></script>
 <script>
 
-var map, bins, colors;
+var map, bins, colors, id_array, data, geojson;
 
 $(document).ready(function() {
   //////////////////////////////////////////////////////////////
@@ -42,6 +45,7 @@ $(document).ready(function() {
       }
     }
   });
+  
   //////////////////////////////////////////////////////////////
   // Create Theme/Themeless Maps
   //////////////////////////////////////////////////////////////
@@ -63,17 +67,83 @@ $(document).ready(function() {
   //geometries and table are needed. 
   if ( uuid in layerDict) {
     var layer = layerDict[uuid];
-    var json = layer.data;
-    $('<canvas id="' + uuid + '" width="100%" height="100%"></canvas>')
-      .appendTo($('#map-container'));
-    map = new GeoVizMap(json, $('#'+uuid), colors, id_array);
+    data = layer.data;
     
-    if ( "maps" in layer ) {
-      layer["maps"].push(map);
-    } else { 
-      layer["maps"] = [map];
-    }
+    var hoverStyle = {
+      "fillOpacity": 0.5
+    };
+    var style = {
+        "clickable": true,
+        "color": "white",
+        "fillColor": "#00D",
+        "weight": 1.0,
+        "opacity": 1.0,
+        "fillOpacity": 0.8
+    };
+
+    geojson = L.geoJson(data, {
+      style: function(feat) {
+        if ( id_array ) {
+          var geodaid = feat.properties.GEODAID;
+          for (var i in id_array) {
+            if (id_array[i].indexOf(geodaid) > -1) {
+              style.fillColor = colors[i];
+              break;
+            }
+          }
+        } 
+        return style;
+      },
+      onEachFeature: function(feature, layer) {
+        if (feature.properties) {
+          var popupString = '<div class="popup" style="height:250px;width:110%">';
+          popupString += '<h2>Properties</h2>';
+          popupString += '<div style="height:200px;overflow:auto;margin-bottom:10px;">';
+          popupString += '<table width="80%">';
+          for (var k in feature.properties) {
+            var v = feature.properties[k];
+            popupString += '<tr><td>'+k + '</td><td>' + v + '</td></td>';
+          }
+          popupString += '</table></div></div>';
+          layer.bindPopup(popupString);
+        }
+        layer.on({
+          mouseover: function(e){
+            var layer = e.target;
+            layer.setStyle({
+              color: '#666',
+              weight: 3.0,
+              fillOpacity: 0.7,
+            });
+          },
+          mouseout: function(e){
+            geojson.resetStyle(e.target)
+          },
+          dblclick: function(e) {
+            map.fitBounds(e.target.getBounds());
+          }
+        });
+      }
+    });
     
+    map = L.map('map').fitBounds(geojson.getBounds());
+    
+    L.tileLayer('https://{s}.tiles.mapbox.com/v3/{id}/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, ' + 
+      '<a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
+      'Imagery © <a href="http://mapbox.com">Mapbox</a>',
+      id: 'examples.map-20v6611k'
+    }).addTo(map);
+  
+    geojson.addTo(map);
+ 
+    //map = new GeoVizMap(json, $('#'+uuid), colors, id_array);
+    //if ( "maps" in layer ) {
+    //  layer["maps"].push(map);
+    //} else { 
+    //  layer["maps"] = [map];
+    //}
     console.log(layer, window.opener.layerDict);
   }
   
@@ -88,7 +158,8 @@ $(document).ready(function() {
   $('#color-selector').change(function(){
     var clr_name = $('#color-selector option:selected').text();
     colors = colorbrewer[clr_name][k];
-    map.updateColor( colors);
+    geojson.clearLayers();
+    geojson.addData(data);
     console.log(colors);
     $('#legend').empty();
     create_legend($('#legend'), bins, colors); 
@@ -105,12 +176,19 @@ $(document).ready(function() {
 });
 </script>
 <body>
-<div id="map-container" style="align:center; border: 0px solid red;height: 100%;">
-  <div id="title" style="margin:10px;">Title</div>
-</div>
+<table><tr><td>
+<div id="title" style="margin:10px; float: left;">Title</div>
 <div id="selector" style="margin:10px; float: right;">
   Select to change color scheme: <select id="color-selector"></select>
 </div>
-<div id="legend" style="margin-top:-60px;"></div>
+</td></tr>
+<tr><td>
+<div id="legend" style="">Legend</div>
+</td></tr>
+<tr><td>
+<div id="map" style="align:center; margin-top:60px;border: 0px solid red;width: 800px;height:500px;">
+</td></tr>
+</table>
+</div>
 </body>
 </html>
