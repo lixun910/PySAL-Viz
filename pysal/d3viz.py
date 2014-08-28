@@ -1,7 +1,7 @@
 import pysal
 import numpy as np
 import os.path
-import json, shutil, webbrowser, md5
+import json, shutil, webbrowser, md5, subprocess, re
 from uuid import uuid4
 from websocket import create_connection
 import shapefile
@@ -12,10 +12,32 @@ __all__=[]
 WS_SERVER = "ws://localhost:9000"
 SHP_DICT = {}
 
-def setup(ws_address):
-    global WS_SERVER
-    WS_SERVER = ws_address
-
+def clean_ports():
+    ports = ['9000','8000']
+    for p in ports:
+        popen = subprocess.Popen(['lsof -n -i4TCP:%s | grep LISTEN'%p],
+                                 shell=True,
+                                 stdout=subprocess.PIPE)
+        (data, err) = popen.communicate()
+        pid = data.split()[1]
+        subprocess.Popen(['kill', '-9', pid])
+            
+def setup(restart=True):
+    if restart:
+        clean_ports()
+        current_path = os.path.realpath(__file__)    
+        
+        print "starting websocket server..."
+        script = "python %s/../ws_server/start_ws_server.py" % \
+            (current_path[0:current_path.rindex('/')])
+        subprocess.Popen([script], shell=True)
+        
+        print "starting http server..."
+        loc = current_path[0:current_path.rindex('/')]
+        script = "cd %s/../www/ && python %s/../www/start_http_server.py" % \
+            (loc, loc)
+        subprocess.Popen([script], shell=True)
+    
 def getuuid(shp):
     """
     Generate UUID using absolute path of shapefile
@@ -27,6 +49,7 @@ def shp2json(shp):
     Create a GeoJson file from pysal.shp object and store it in www/ path.
     Which can be visited using http://localhost:8000/*.json
     """
+    print "reading data ..."
     reader = shapefile.Reader(shp.dataPath)
     fields = reader.fields[1:]
     field_names = [field[0] for field in fields]
@@ -43,6 +66,7 @@ def shp2json(shp):
         SHP_DICT[shp] = getuuid(shp)
     uuid = SHP_DICT[shp]
     
+    print "creating geojson ..."
     current_path = os.path.realpath(__file__)    
     www_path = "%s/../www/%s.json" % \
         (current_path[0:current_path.rindex('/')], uuid)
@@ -52,21 +76,31 @@ def shp2json(shp):
         geojson.write(json.dumps({"type": "FeatureCollection","features": buffer}))
         geojson.close()
 
-def lzwJson(json):
-    codes = dict([(chr(x), x) for x in range(256)])
-    compressed_data = []
-    code_count = 257
-    current_string = ""
-    for c in json:
-        current_string = current_string + c
-        if not (codes.has_key(current_string)):
-            codes[current_string] = code_count
-            compressed_data.append( codes[current_string[:-1]])
-            code_count += 1
-            current_string = c
-    compressed_data.append( codes[current_string])
-    return compressed_data
-
+def open_web_portal(shp):
+    global SHP_DICT
+    if not shp in SHP_DICT:
+        # Open a new web portal since this map is newly opened.
+        pass
+    else:
+        # Check if this map has already been opened in a web portal
+        uuid = SHP_DICT[shp]
+        global WS_SERVER 
+        ws = create_connection(WS_SERVER)
+        msg = {
+            "command": "check_active",
+            "uuid": uuid
+        }
+        str_msg = json.dumps(msg)
+        ws.send(str_msg)
+        print "send:", str_msg
+        rsp = ws.recv()
+        print "receive:", rsp
+        ws.close()
+        rsp = json.loads(rsp)
+        if rsp["response"] == "FAIL":
+            pass
+    
+    
 def show_map(shp):
     """
     Ideally, users need to open and process shapefile using:
@@ -74,20 +108,20 @@ def show_map(shp):
     
     then, users can call 
     
-    >>>> layer_uuid = pysal.contrib.d3viz.show_map(shp) 
+    >>>> pysal.contrib.d3viz.show_map(shp) 
    
     to bring up a browser for showing the map.
     For further usage, e.g. create a quantile map, users need to call the 
     command with the uuid to specify the data.
     
-    >>>> pysal.contrib.d3viz.quantile_map(layer_uuid, {'var':'T'..})
+    >>>> pysal.contrib.d3viz.quantile_map(shp, 'var', 5)
     
     To create a scatter plot, users need to 
     """
-    #url = "http://127.0.0.1:8000/%s" % "index.html"
-    #webbrowser.open_new(url)
+    url = "http://127.0.0.1:8000/index.html"
+    webbrowser.open_new(url)
      
-    data = shp2json(shp)
+    shp2json(shp)
     
     global WS_SERVER 
     ws = create_connection(WS_SERVER)
@@ -97,16 +131,16 @@ def show_map(shp):
     msg = {
         "command": "add_layer",
         "uuid": uuid,
-        "data" : data,
     }
     str_msg = json.dumps(msg)
     ws.send(str_msg)
     print "send:", str_msg
-    rsp = ws.recv()
-    print "receive:", rsp
     ws.close()
     
 def get_selected(shp):
+    """
+    Get shape object ids from web pages.
+    """
     global SHP_DICT 
     uuid = SHP_DICT[shp]
     
@@ -119,8 +153,8 @@ def get_selected(shp):
     str_msg = json.dumps(msg)
     ws.send(str_msg)
     print "send:", str_msg
+    print "receiving..."
     rsp = ws.recv()
-    print "receive:", rsp
     ws.close()
     
     msg = json.loads(rsp)
@@ -145,8 +179,6 @@ def select(shp, ids=[]):
     str_msg = json.dumps(msg)
     ws.send(str_msg)
     print "send:", str_msg
-    rsp = ws.recv()
-    print "receive:", rsp
     ws.close()
     
 def quantile_map(shp, dbf, var, k, basemap=None):
@@ -179,11 +211,9 @@ def quantile_map(shp, dbf, var, k, basemap=None):
     str_msg = json.dumps(msg)
     ws.send(str_msg)
     print "send:", str_msg
-    rsp = ws.recv()
-    print "receive:", rsp
     ws.close()
 
-def lisa_map(shp, var, w):
+def lisa_map(shp, dbf, var, w):
     y = dbf.by_col[var]
     lm = pysal.Moran_Local(np.array(y), w)
      
@@ -208,8 +238,6 @@ def lisa_map(shp, var, w):
     str_msg = json.dumps(msg)
     ws.send(str_msg)
     print "send:", str_msg
-    rsp = ws.recv()
-    print "receive:", rsp
     ws.close()
     
 def scatter_plot_matrix(shp, fields):
@@ -228,11 +256,10 @@ def scatter_plot_matrix(shp, fields):
     str_msg = json.dumps(msg)
     ws.send(str_msg)
     print "send:", str_msg
-    rsp = ws.recv()
-    print "receive:", rsp
     ws.close()
     
 # Test
+setup()
 shp = pysal.open(pysal.examples.get_path('NAT.shp'),'r')
 dbf = pysal.open(pysal.examples.get_path('NAT.dbf'),'r')
 show_map(shp)
@@ -250,7 +277,7 @@ quantile_map(shp, dbf, "HC60", 5)
 
 
 w = pysal.rook_from_shapefile(pysal.examples.get_path('NAT.shp'))
-lisa_map(shp, "HC60", w)
+lisa_map(shp, dbf, "HC60", w)
 
 scatter_plot_matrix(shp, ["HC60", "HC70"])
     

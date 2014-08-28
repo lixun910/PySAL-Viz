@@ -112,6 +112,7 @@ $(document).ready(function() {
     var flowers = [];
     json.features.forEach(function(feat){flowers.push(feat.properties);});
     
+    $('#loading').remove();
     // Position scales.
     var x = {}, y = {};
     var traits = fields;
