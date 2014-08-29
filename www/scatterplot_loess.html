@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<body>
+<style>
+    body {
+        font-family: Georgia;
+        font-size: 14px;
+        color: #333;
+    }
+
+    #container {
+        width: 740px;
+        height: 500px;
+        margin: 0 auto;
+        position: relative;
+        background-color: #f2f2f2;
+    }
+
+    #inner-container {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        bottom: 20px;
+        right: 20px;
+    }
+
+    #header h1 {
+        margin-top: 0;
+        font-size: 20px;
+        font-weight: bold;
+        text-transform: uppercase
+    }
+
+    #footer {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        font-size: 12px;
+    }
+
+    svg {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+    }
+
+    .point {
+        fill: #FFC8CD;
+    }
+
+    .curve {
+        stroke: #D90036;
+        stroke-width: 4;
+    }
+
+    .axis .domain { 
+        display: none;
+    }
+
+    .axis.x line {
+        shape-rendering: crispEdges;
+        stroke: #333;
+        stroke-width: 2;
+    }
+
+    .axis.x.minor line {
+        stroke: #ccc;
+        stroke-width: 1;
+    }
+
+    .axis-rule {
+        shape-rendering: crispEdges;
+        stroke: #e0e0e0;
+    }
+
+    .axis-rule.zero {
+        stroke-width: 2;
+        stroke: #000;
+    }
+
+    .line {
+        fill-opacity: 0;
+        stroke-width: 4;
+        stroke: #C10000;
+    }
+</style>
+<div id="container">
+    <div id="inner-container">
+        <div id="header">
+           <h1>United States unemployment rate, 1948-2010</h1>
+        </div>
+        <div id="footer">
+            Source: Bureau of Labor Statistics| Nathan Yau
+        </div>
+    </div>
+</div>
+<script src="js/d3.v3.min.js" charset="utf-8"></script>
+<script>
+    var science = { stats: {} };
+</script>
+<script src="js/loess.js" charset="utf-8"></script>
+<script>
+    var width = 740,
+        height = 500,
+        margin = { top: 70, right: 20, bottom: 20, left: 20},
+        padding = { top: 30, right: 30, bottom: 50, left: 30 };
+
+    // Width/height of the chart without margin and padding
+    var chartWidth = width - margin.left - margin.right - padding.left - padding.right;
+    var chartHeight = height - margin.top - margin.bottom - padding.top - padding.bottom;
+
+    var xValue = function(d) { return d.period; },
+        xScale = d3.time.scale().range([0, chartWidth]),
+        xMap = function(d) { return xScale(xValue(d)); },
+        xAxis = d3.svg.axis()
+            .scale(xScale)
+            .orient('bottom')
+            .ticks(function() { // To create a specific set of tickmarks
+                return [1948, 1963, 1978, 1993, 2008]
+                .map(function(d) { return new Date(d, 0, 1); }) });
+
+    var yValue = function(d) { return d.value; },
+        yScale = d3.scale.linear().range([chartHeight, 0]),
+        yMap = function(d) { return yScale(yValue(d)); },
+        yAxis = d3.svg.axis()
+            .scale(yScale)
+            .ticks(6)
+            .tickFormat(function(d) { return d + '%'; })
+            .orient('left');
+
+    var svg = d3.select('#container').append('svg')
+        .attr('width', width)
+        .attr('height', height);
+
+    var chart = svg.append('g')
+        .attr('class', 'chart')
+        .attr('transform', 'translate(' + (margin.left + padding.left) + ', ' + (margin.top + padding.top) + ')');
+
+    var csvfile = 'unemployment-rate-1948-2010.csv';
+    d3.csv(csvfile, function(d) {
+            return {
+                period: new Date(+d.Year, +(d.Period.slice(1))), 
+                // it's only a period and a year, what should the date be?
+                value: +d.Value
+            };
+        }, function(error, data) {
+            // Set the domain based on the data
+            xScale.domain(d3.extent(data, xValue));
+            yScale.domain([0, d3.max(data, yValue)]);
+
+            // Render the X axis 
+            chart.append('g')
+                .attr('class', 'axis x')
+                .attr('transform', 'translate(0, ' + chartHeight + ')')
+                .call(xAxis)
+
+            // Render the Y axis 
+            chart.append('g')
+                .attr('transform', 'translate(0, -10)')
+                .attr('class', 'axis y')
+                .call(yAxis)
+
+            // Render the Y axis rulers
+            chart.selectAll('.axis-rule.x')
+                .data(yScale.ticks(7))
+                .enter()
+                    .append('line')
+                    .attr('class', function(d) {
+                        var cls = 'axis-rule x'
+
+                        if (d == 0) {
+                            cls += ' zero';
+                        }
+
+                        return cls;
+                    })
+                    .attr('x1', -padding.left)
+                    .attr('x2', chartWidth + padding.right)
+                    .attr('y1', function(d) { return yScale(d); })
+                    .attr('y2', function(d) { return yScale(d); })
+
+            // Render the values
+            chart.selectAll('.point')
+                .data(data)
+                .enter()
+                .append('circle')
+                    .attr('class', 'point')
+                    .attr('r', 3)
+                    .attr('cx', xMap)
+                    .attr('cy', yMap);
+
+            // Render the fitted line
+            chart.append('path')
+                .datum(function() {
+                    var loess = science.stats.loess();
+                    loess.bandwidth(0.25);
+
+                    var xValues = data.map(xMap);
+                    var yValues = data.map(yMap);
+                    var yValuesSmoothed = loess(xValues, yValues);
+
+                    return d3.zip(xValues, yValuesSmoothed);
+                })
+                .attr('class', 'line')
+                .attr('d', d3.svg.line()
+                    .interpolate('basis')
+                    .x(function(d) { return d[0]; })
+                    .y(function(d) { return d[1]; }))
+        });
+
+</script>
+</body>

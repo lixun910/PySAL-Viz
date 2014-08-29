@@ -192,7 +192,7 @@ GeoVizMap.prototype = {
     return _buffer;
   },
 
-  highlight: function( ids, context ) {
+  highlight: function( ids, nolinking ) {
     context = _self.mapcanvas.getContext("2d");
     context.clearRect(0, 0, _self.width, _self.height);
     context.drawImage( _self.buffer, 0, 0);
@@ -206,10 +206,9 @@ GeoVizMap.prototype = {
         _self.drawPoint( context, _self.geojson.features[id] );
       }
     });
-    localStorage["HL_LAYER"] = _self.mapcanvas.id;
-    localStorage["HL_IDS"] = ids.toString();
-    if (window.opener) {
-      console.log(window.opener.highlighted);
+    if (nolinking == undefined) {
+      localStorage["HL_LAYER"] = _self.mapcanvas.id;
+      localStorage["HL_IDS"] = ids.toString();
     }
     return context;
   },

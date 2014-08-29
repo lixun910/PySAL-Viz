@@ -7,7 +7,7 @@ from websocket import create_connection
 import shapefile
 
 __author__='Xun Li <xunli@asu.edu>'
-__all__=[]
+__all__=['clean_ports','setup','getuuid','shp2json','show_map','get_selected', 'select','quantile_map','lisa_map','scatter_plot_matrix']
 
 WS_SERVER = "ws://localhost:9000"
 SHP_DICT = {}
@@ -19,8 +19,9 @@ def clean_ports():
                                  shell=True,
                                  stdout=subprocess.PIPE)
         (data, err) = popen.communicate()
-        pid = data.split()[1]
-        subprocess.Popen(['kill', '-9', pid])
+        if data:
+            pid = data.split()[1]
+            subprocess.Popen(['kill', '-9', pid])
             
 def setup(restart=True):
     if restart:
@@ -37,6 +38,9 @@ def setup(restart=True):
         script = "cd %s/../www/ && python %s/../www/start_http_server.py" % \
             (loc, loc)
         subprocess.Popen([script], shell=True)
+        
+    url = "http://127.0.0.1:8000/index.html"
+    webbrowser.open_new(url)
     
 def getuuid(shp):
     """
@@ -44,23 +48,11 @@ def getuuid(shp):
     """
     return md5.md5(shp.dataPath).hexdigest()
     
-def shp2json(shp):
+def shp2json(shp,rebuild=False):
     """
     Create a GeoJson file from pysal.shp object and store it in www/ path.
     Which can be visited using http://localhost:8000/*.json
     """
-    print "reading data ..."
-    reader = shapefile.Reader(shp.dataPath)
-    fields = reader.fields[1:]
-    field_names = [field[0] for field in fields]
-    buffer = []
-    for i, sr in enumerate(reader.shapeRecords()):
-        field_names.append("GEODAID")
-        sr.record.append(i)
-        atr = dict(zip(field_names, sr.record))
-        geom = sr.shape.__geo_interface__
-        buffer.append(dict(type="Feature", geometry=geom, properties=atr))
-        
     global SHP_DICT
     if not shp in SHP_DICT:
         SHP_DICT[shp] = getuuid(shp)
@@ -71,10 +63,24 @@ def shp2json(shp):
     www_path = "%s/../www/%s.json" % \
         (current_path[0:current_path.rindex('/')], uuid)
    
-    if not os.path.exists(www_path): 
+    if not os.path.exists(www_path) or rebuild==True: 
+        print "reading data ..."
+        reader = shapefile.Reader(shp.dataPath)
+        fields = reader.fields[1:]
+        field_names = [field[0] for field in fields]
+        buffer = []
+        for i, sr in enumerate(reader.shapeRecords()):
+            field_names.append("GEODAID")
+            sr.record.append(i)
+            atr = dict(zip(field_names, sr.record))
+            geom = sr.shape.__geo_interface__
+            buffer.append(dict(type="Feature", geometry=geom, properties=atr))
+        
         geojson = open(www_path, "w")
         geojson.write(json.dumps({"type": "FeatureCollection","features": buffer}))
         geojson.close()
+    else:
+        print "The geojson data has been created before. If you want re-create geojson data, please call shp2json(shp, rebuild=True)."
 
 def open_web_portal(shp):
     global SHP_DICT
@@ -118,9 +124,6 @@ def show_map(shp):
     
     To create a scatter plot, users need to 
     """
-    url = "http://127.0.0.1:8000/index.html"
-    webbrowser.open_new(url)
-     
     shp2json(shp)
     
     global WS_SERVER 
@@ -152,7 +155,7 @@ def get_selected(shp):
     }
     str_msg = json.dumps(msg)
     ws.send(str_msg)
-    print "send:", str_msg
+    #print "send:", str_msg
     print "receiving..."
     rsp = ws.recv()
     ws.close()
@@ -178,7 +181,7 @@ def select(shp, ids=[]):
     }
     str_msg = json.dumps(msg)
     ws.send(str_msg)
-    print "send:", str_msg
+    #print "send:", str_msg
     ws.close()
     
 def quantile_map(shp, dbf, var, k, basemap=None):
@@ -210,7 +213,7 @@ def quantile_map(shp, dbf, var, k, basemap=None):
         
     str_msg = json.dumps(msg)
     ws.send(str_msg)
-    print "send:", str_msg
+    #print "send:", str_msg
     ws.close()
 
 def lisa_map(shp, dbf, var, w):
@@ -219,7 +222,9 @@ def lisa_map(shp, dbf, var, w):
      
     bins = ["Not Significant","High-High","Low-High","Low-Low","Hight-Low"]
     id_array = []
-    for j in range(5): 
+    id_array.append([i for i,v in enumerate(lm.p_sim) \
+                     if lm.p_sim[i] >= 0.05])
+    for j in range(1,5): 
         id_array.append([i for i,v in enumerate(lm.q) \
                          if v == j and lm.p_sim[i] < 0.05])
     
@@ -237,7 +242,7 @@ def lisa_map(shp, dbf, var, w):
     }
     str_msg = json.dumps(msg)
     ws.send(str_msg)
-    print "send:", str_msg
+    #print "send:", str_msg
     ws.close()
     
 def scatter_plot_matrix(shp, fields):
@@ -255,32 +260,33 @@ def scatter_plot_matrix(shp, fields):
     }
     str_msg = json.dumps(msg)
     ws.send(str_msg)
-    print "send:", str_msg
+    #print "send:", str_msg
     ws.close()
     
-# Test
-setup()
-shp = pysal.open(pysal.examples.get_path('NAT.shp'),'r')
-dbf = pysal.open(pysal.examples.get_path('NAT.dbf'),'r')
-show_map(shp)
-
-quantile_map(shp, dbf, "HC60", 5, basemap="leaflet_map")
-
-#ids = get_selected(shp)
-#print ids
-
-select_ids = [i for i,v in enumerate(dbf.by_col["HC60"]) if v < 20.0]
-select(shp, ids=select_ids)
-
-
-quantile_map(shp, dbf, "HC60", 5)
-
-
-w = pysal.rook_from_shapefile(pysal.examples.get_path('NAT.shp'))
-lisa_map(shp, dbf, "HC60", w)
-
-scatter_plot_matrix(shp, ["HC60", "HC70"])
+def test():
+    # Test
+    setup()
+    shp = pysal.open(pysal.examples.get_path('NAT.shp'),'r')
+    dbf = pysal.open(pysal.examples.get_path('NAT.dbf'),'r')
+    show_map(shp)
     
-#show_table(shp)
+    quantile_map(shp, dbf, "HC60", 5, basemap="leaflet_map")
+    
+    #ids = get_selected(shp)
+    #print ids
+    
+    select_ids = [i for i,v in enumerate(dbf.by_col["HC60"]) if v < 20.0]
+    select(shp, ids=select_ids)
     
     
+    quantile_map(shp, dbf, "HC60", 5)
+    
+    
+    w = pysal.rook_from_shapefile(pysal.examples.get_path('NAT.shp'))
+    lisa_map(shp, dbf, "HC60", w)
+    
+    scatter_plot_matrix(shp, ["HC60", "HC70"])
+        
+    #show_table(shp)
+        
+        

@@ -33,12 +33,12 @@ $(document).ready(function() {
         select_ids[i] = parseInt(select_ids[i]);
       }
       var layer = window.opener.layerDict[uuid];
-      layer.basemap.highlight(select_ids);
+      layer.basemap.highlight(select_ids, "nolinking");
       for (var i=0, n=layer.maps.length; i< n; i++) {
-        layer.maps[i].highlight(select_ids);
+        layer.maps[i].highlight(select_ids, "nolinking");
       }
       for (var i=0, n=layer.plots.length; i< n; i++) {
-        layer.plots[i].highlight(select_ids);
+        layer.plots[i].highlight(select_ids, "nolinking");
       }
     }
   });
