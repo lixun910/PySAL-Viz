@@ -39,6 +39,8 @@ def setup(restart=True):
             (loc, loc)
         subprocess.Popen([script], shell=True)
         
+    from time import sleep
+    sleep(1)
     url = "http://127.0.0.1:8000/index.html"
     webbrowser.open_new(url)
     
@@ -245,6 +247,24 @@ def lisa_map(shp, dbf, var, w):
     #print "send:", str_msg
     ws.close()
     
+def scatter_plot(shp, fields):
+    
+    global SHP_DICT 
+    uuid = SHP_DICT[shp]
+    
+    global WS_SERVER 
+    ws = create_connection(WS_SERVER)
+    msg = {
+        "command": "scatter_plot",
+        "uuid":  uuid,
+        "title": "Scatter plot matrix for variables [%s]" %(",".join(fields)),
+        "fields": fields,
+    }
+    str_msg = json.dumps(msg)
+    ws.send(str_msg)
+    #print "send:", str_msg
+    ws.close()
+    
 def scatter_plot_matrix(shp, fields):
     
     global SHP_DICT 
@@ -270,6 +290,8 @@ def test():
     dbf = pysal.open(pysal.examples.get_path('NAT.dbf'),'r')
     show_map(shp)
     
+    scatter_plot(shp, ["HR90", "PS90"])
+    
     quantile_map(shp, dbf, "HC60", 5, basemap="leaflet_map")
     
     #ids = get_selected(shp)
@@ -289,4 +311,4 @@ def test():
         
     #show_table(shp)
         
-        
+test() 

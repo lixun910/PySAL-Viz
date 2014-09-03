@@ -122,6 +122,10 @@ $(document).ready(function() {
             break;
           case "histogram":
             break;
+          case "scatter_plot":
+            scatter_plot(msg); 
+            socket.send("OK");
+            break;
           case "scatter_plot_matrix":
             scatter_plot_matrix(msg); 
             socket.send("OK");
@@ -224,6 +228,15 @@ var leaflet_map = function(o) {
 /*
 For scatter plot, the table data should be used. 
 */
+var scatter_plot = function(o) {
+  var w = window.open(
+    'scatterplot_loess.html', 
+    "_blank",
+    "width=900, height=650, scrollbars=yes"
+  );
+  //The newly creately scatter plot will be added to layerDict[uuid].plots.
+};
+
 var scatter_plot_matrix = function(o) {
   var w = window.open(
     'scatterplot.html', 
@@ -270,7 +283,7 @@ var clear_select = function(o) {
 
 <body>
 <div id="loading">
-     Loading...
+     Waiting for show_map() command...
 </div>
 <div id="map-container" style="border: 0px solid red;height: 100px;"></div>
 </body>
