@@ -247,6 +247,30 @@ def lisa_map(shp, dbf, var, w):
     #print "send:", str_msg
     ws.close()
     
+def moran_scatter_plot(shp, dbf, var, w):
+    y = np.array(dbf.by_col[var])
+    y_lag = pysal.lag_spatial(w, y)
+   
+    y = (y - y.mean()) / y.std()
+    y_lag = (y_lag - y_lag.mean()) / y_lag.std()
+    
+    global SHP_DICT 
+    uuid = SHP_DICT[shp]
+    
+    global WS_SERVER 
+    ws = create_connection(WS_SERVER)
+    msg = {
+        "command": "moran_scatter_plot",
+        "uuid":  uuid,
+        "title": "Moran Scatter plot for variables [%s]" % var,
+        "data": {
+        },
+    }
+    str_msg = json.dumps(msg)
+    ws.send(str_msg)
+    #print "send:", str_msg
+    ws.close()
+    
 def scatter_plot(shp, fields):
     
     global SHP_DICT 
