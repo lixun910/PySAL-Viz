@@ -4,6 +4,8 @@ import os.path
 import json, shutil, webbrowser, md5, subprocess, re, threading, sys
 from uuid import uuid4
 from websocket import create_connection
+from weights_dispatcher import CreateWeights
+from gs_dispatcher import Spmodel, DEFAULT_SPREG_CONFIG
 import shapefile
 
 __author__='Xun Li <xunli@asu.edu>'
@@ -27,7 +29,7 @@ class answerThread(threading.Thread):
         
     def run(self):
         print "[Answering] running..." 
-        global SHP_DICT
+        global SHP_DICT, DBF_DICT, R_SHP_DICT
         count = 1
         while True:
             rsp = self.ws.recv()
@@ -45,14 +47,175 @@ class answerThread(threading.Thread):
                         dbf = pysal.open(dbf_path, 'r')
                         SHP_DICT[shp] = uuid
                         DBF_DICT[dbf] = uuid
-                        R_SHP_DICT[uuid] = shp
-                        R_DBF_DICT[uuid] = dbf
+                        
+                        if not uuid in R_SHP_DICT:
+                            R_SHP_DICT[uuid] = {}
+                        R_SHP_DICT[uuid]["shp"] = shp
+                        R_SHP_DICT[uuid]["dbf"] = dbf
+                        R_SHP_DICT[uuid]["shp_path"] = path
                         
                         self.parent.show_map(shp)
                     
-                elif command == "create_w":
-                    pass
+                elif command == "new_quantile_map":
+                    uuid = msg["uuid"]
+                    var = msg["var"]
+                    cat = msg["category"]
+                    shp = R_SHP_DICT[uuid]["shp"]
+                    dbf = R_SHP_DICT[uuid]["dbf"]
                     
+                    self.parent.quantile_map(shp, dbf, var, cat)
+                    
+                elif command == "create_w":
+                    uuid = msg["uuid"]
+                    parameters = msg["parameters"]
+                    w_id = parameters["w_id"] \
+                        if "w_id" in parameters else None
+                    w_name = parameters["w_name"] \
+                        if "w_name" in parameters else None
+                    w_type = parameters["w_type"] \
+                        if "w_type" in parameters else None
+                    cont_type = parameters["cont_type"] \
+                        if "cont_type" in parameters else None
+                    cont_order = parameters["cont_order"] \
+                        if "cont_order" in parameters else None
+                    cont_ilo = parameters["cont_ilo"] \
+                        if "cont_ilo" in parameters else None
+                    dist_metric = parameters["dist_metric"] \
+                        if "dist_metric" in parameters else None
+                    dist_method = parameters["dist_method"] \
+                        if "dist_method" in parameters else None
+                    dist_value = parameters["dist_value"] \
+                        if "dist_value" in parameters else None
+                    kernel_type = parameters["kernel_type"] \
+                        if "kernel_type" in parameters else None
+                    kernel_nn = parameters["kernel_nn"] \
+                        if "kernel_nn" in parameters else None
+                    
+                    shp_path = R_SHP_DICT[uuid]["shp_path"]
+                    w = CreateWeights(shp_path, w_name, w_id, w_type,\
+                                      cont_type = cont_type,
+                                      cont_order = cont_order,
+                                      cont_ilo = cont_ilo,
+                                      dist_metric = dist_metric, 
+                                      dist_method = dist_method,
+                                      dist_value = dist_value,
+                                      kernel_type = kernel_type,
+                                      kernel_nn = kernel_nn)                    
+                    
+                    if not "weights" in R_SHP_DICT[uuid]:
+                        R_SHP_DICT[uuid]["weights"] = {}
+                    R_SHP_DICT[uuid]["weights"][w_name] = w
+                    
+                    self.ws.send('{"command":"rsp_create_w","success":1}')
+                
+                elif command == "spatial_regression":
+                    uuid = msg["uuid"] 
+                    w_model = msg["w"]  if "w" in msg else []
+                    w_kernel = msg["wk"] if "wk" in msg else []
+                    model_type = msg["type"] if "type" in msg else None
+                    model_method = msg["method"] if "method" in msg else None 
+                    error = msg["error"] if "error" in msg else None 
+                    if len(error) == 0: error = [0, 0, 0]
+                    white = int(error[0])
+                    hac = int(error[0])
+                    kp_het = int(error[2])
+                    name_y = msg["y"] if "y" in msg else None
+                    name_x = msg["x"] if "x" in msg else None
+                    name_ye = msg["ye"] if "ye" in msg else None
+                    name_h = msg["h"] if "h" in msg else None
+                    name_r = msg["r"] if "r" in msg else None
+                    name_t = msg["t"] if "t" in msg else None
+                   
+                    if not uuid and not name_y and not name_x \
+                        and model_type not in [0,1,2,3] and \
+                        model_method not in [0,1,2]:
+                        self.ws.send('{"command":"rsp_spatial_regression","success":0}')
+                    else: 
+                        # These options are not available yet....
+                        s = None
+                        name_s = None
+                        mtypes = {0: 'Standard', 1: 'Spatial Lag', 2: 'Spatial Error', \
+                                  3: 'Spatial Lag+Error'}   
+                        model_type = mtypes[model_type]
+                        method_types = {0: 'ols', 1: 'gm', 2: 'ml'}
+                        method = method_types[model_method]
+                        w_list = [R_SHP_DICT[uuid]["weights"][w_name] for w_name in w_model]
+                        wk_list = [R_SHP_DICT[uuid]["weights"][w_name] for w_name in w_kernel]
+                        LM_TEST = False
+                        if len(w_list) > 0 and model_type in ['Standard', 'Spatial Lag']:
+                            LM_TEST = True
+                            
+                        dbf = R_SHP_DICT[uuid]["dbf"]
+                        shp_path = R_SHP_DICT[uuid]["shp_path"]
+                        
+                        y = np.array([dbf.by_col(name_y)]).T
+                        ye = np.array([dbf.by_col(name) for name in name_ye]).T if name_ye else None
+                        x = np.array([dbf.by_col(name) for name in name_x]).T
+                        h = np.array([dbf.by_col(name) for name in name_h]).T if name_h else []
+                        r = np.array(dbf.by_col(name_r)) if name_r else None
+                        t = np.array(dbf.by_col(name_t)) if name_t else None
+                       
+                        config = DEFAULT_SPREG_CONFIG
+                        predy_resid = None # not write to file
+                        models = Spmodel(
+                            name_ds=shp_path,
+                            w_list=w_list,
+                            wk_list=wk_list,
+                            y=y,
+                            name_y=name_y,
+                            x=x,
+                            name_x=name_x,
+                            ye=ye,
+                            name_ye=name_ye,
+                            h=h,
+                            name_h=name_h,
+                            r=r,
+                            name_r=name_r,
+                            s=s,
+                            name_s=name_s,
+                            t=t,
+                            name_t=name_t,
+                            model_type=model_type,  # data['modelType']['endogenous'],
+                            # data['modelType']['spatial_tests']['lm'],
+                            spat_diag=LM_TEST,
+                            white=white,
+                            hac=hac,
+                            kp_het=kp_het,
+                            # config.....
+                            sig2n_k_ols=config['sig2n_k_ols'],
+                            sig2n_k_tsls=config['sig2n_k_2sls'],
+                            sig2n_k_gmlag=config['sig2n_k_gmlag'],
+                            max_iter=config['gmm_max_iter'],
+                            stop_crit=config['gmm_epsilon'],
+                            inf_lambda=config['gmm_inferenceOnLambda'],
+                            comp_inverse=config['gmm_inv_method'],
+                            step1c=config['gmm_step1c'],
+                            instrument_lags=config['instruments_w_lags'],
+                            lag_user_inst=config['instruments_lag_q'],
+                            vc_matrix=config['output_vm_summary'],
+                            predy_resid=predy_resid,
+                            ols_diag=config['other_ols_diagnostics'],
+                            moran=config['other_residualMoran'],
+                            white_test=config['white_test'],
+                            regime_err_sep=config['regimes_regime_error'],
+                            regime_lag_sep=config['regimes_regime_lag'],
+                            cores=config['other_numcores'],
+                            ml_epsilon=config['ml_epsilon'],
+                            ml_method=config['ml_method'],
+                            ml_diag=config['ml_diagnostics'],
+                            method=method
+                        ).output
+                        model_result = {} 
+                        for i,model in enumerate(models):
+                            model_id = i
+                            #if len(w_list) == len(models):
+                            #    model_id = w_list[i].name
+                            model_result[model_id] = {'summary':model.summary,'predy':model.predy.T.tolist(),'residuals':model.u.T.tolist()}
+                        result = {}
+                        result['report'] = model_result
+                        result['success'] = 1                        
+                        result['command'] = 'rsp_spatial_regression'
+                        self.ws.send(json.dumps(result))
             except:
                 pass
         print "[Answering] exiting..." 
