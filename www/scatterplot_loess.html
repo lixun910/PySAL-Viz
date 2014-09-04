@@ -71,7 +71,7 @@ $(document).ready(function() {
       d3.selectAll("rect").each(function(d) { d.selected = false; });
       var points = d3.selectAll("rect")[0];
       for ( var i=0; i<select_ids.length; i++ ) {
-        $(points[selected_ids[i]]).attr("class", "point selected"); 
+        $(points[select_ids[i]]).attr("class", "point selected"); 
       }
     }
   });

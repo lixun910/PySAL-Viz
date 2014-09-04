@@ -4,13 +4,12 @@ import os.path
 import json, shutil, webbrowser, md5, subprocess, re, threading, sys
 from uuid import uuid4
 from websocket import create_connection
-from weights_dispatcher import CreateWeights
-from gs_dispatcher import Spmodel, DEFAULT_SPREG_CONFIG
 import shapefile
 
 __author__='Xun Li <xunli@asu.edu>'
 __all__=['clean_ports','setup','getuuid','shp2json','show_map','get_selected', 'select','quantile_map','lisa_map','scatter_plot_matrix']
 
+PORTAL = "index.html"
 WS_SERVER = "ws://localhost:9000"
 SHP_DICT = {}
 DBF_DICT = {}
@@ -28,6 +27,8 @@ class answerThread(threading.Thread):
         self.ws = create_connection(WS_SERVER)
         
     def run(self):
+        from weights_dispatcher import CreateWeights
+        from gs_dispatcher import Spmodel, DEFAULT_SPREG_CONFIG
         print "[Answering] running..." 
         global SHP_DICT, DBF_DICT, R_SHP_DICT
         count = 1
@@ -220,9 +221,21 @@ class answerThread(threading.Thread):
                 pass
         print "[Answering] exiting..." 
         
-def get_all_shp():
-    global SHP_DICT
-    return SHP_DICT.keys()
+def list_shp():
+    global R_SHP_DICT
+    return R_SHP_DICT.keys()
+
+def get_shp(uuid):
+    global R_SHP_DICT
+    if uuid in R_SHP_DICT.keys():
+        return R_SHP_DICT[uuid]["shp"]
+    return None
+
+def get_dbf(uuid):
+    global R_SHP_DICT
+    if uuid in R_SHP_DICT.keys():
+        return R_SHP_DICT[uuid]["dbf"]
+    return None
 
 def clean_ports():
     ports = ['9000','8000']
@@ -253,7 +266,8 @@ def setup(restart=True):
         
     from time import sleep
     sleep(1)
-    url = "http://127.0.0.1:8000/index.html"
+    global PORTAL
+    url = "http://127.0.0.1:8000/%s" % PORTAL
     webbrowser.open_new(url)
     
 def getuuid(shp):
@@ -557,11 +571,14 @@ def test():
         
     #show_table(shp)
        
-def start_answermachine():
+def start_webportal():
+    global PORTAL
+    PORTAL = "portal.html"
+    setup()
     am = answerThread(sys.modules[__name__])
     am.start()
     
 if __name__ == '__main__':
     setup()
-    start_answermachine()
-    #test() 
+    #start_answermachine()
+    test() 

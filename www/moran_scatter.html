@@ -77,7 +77,7 @@ $(document).ready(function() {
       d3.selectAll("rect").each(function(d) { d.selected = false; });
       var points = d3.selectAll("rect")[0];
       for ( var i=0; i<select_ids.length; i++ ) {
-        $(points[selected_ids[i]]).attr("class", "point selected"); 
+        $(points[select_ids[i]]).attr("class", "point selected"); 
       }
     }
   });
@@ -215,7 +215,7 @@ $(document).ready(function() {
             var lin = ss.linear_regression()
               .data(data_copy.map(function(d){ return d;}))
               .line();
-             
+            console.log(lin);
             var lin_data = xScale.domain().map(function(x) {
               return [xScale(x), yScale(lin(x))];
             });
