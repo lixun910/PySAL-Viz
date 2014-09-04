@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>XGeo.app</title>
+<style>
+div {
+  display: block;
+}
+#header {
+  height: 80px;
+  margin-bottom: 20px;
+  padding-top: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #eee;
+}
+#header .container {
+  width: 90%;
+  height: 90px;
+  margin: 0 auto;
+  text-align: left;
+}
+#header .logo {
+  width: 480px;
+}
+body {
+  text-align: center;
+  font-family: "Trebuchet MS", "Helvetica", "Arial",  "Verdana", "sans-serif";
+  font-size: 62.5%;
+}
+#dragdrop_div {
+  width: 60%;
+  padding: 10px;
+}
+
+#drop_zone {
+  border: 2px dashed #bbb;
+  border-radius: 5px;
+  padding: 25px;
+  text-align: center;
+  font: 20pt bold 'Vollkorn';
+  color: #bbb;
+}
+
+#dropbox_div {
+  width: 250px; 
+  height: 80px;
+  margin-top: 10px;
+  padding-top: 30px;
+  vertical-align: middle;
+  border-right:2px solid #ccc;
+  float: left;
+}
+#toolbar {
+  width: 90%;
+  height: 100px;
+  margin-top: 20px;
+  margin:0 auto;
+}
+.toolbar_tbl {
+  margin-top: 20px; 
+  border: none; 
+  overflow: hidden;
+}
+.block_button {
+  border: 1px solid #bbb;
+  border-radius: 5px;
+  padding: 25px;
+  opacity: 0.2;
+  background: #ccc;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+#btnOpenData {background-image: url(img/add-file.png);}
+#btnAddLayer {background-image: url(img/addLayer.png);}
+#btnSave {background-image: url(img/save.png);}
+#btnShowTable {background-image: url(img/table.png);}
+#btnCreateW {background-image: url(img/newW.png);}
+#btnWHistogram{background-image: url(img/wHist.png);}
+#btnKDE{background-image: url(img/kde.png);}
+#btnNewMap{background-image: url(img/nmap.png);}
+#btnScatterPlot{background-image: url(img/scatter.png);}
+#btnHist{background-image: url(img/hist.png);}
+#btnPCP{background-image: url(img/pcp.png);}
+#btnLISA{background-image: url(img/lisa.png);}
+#btnSpreg{background-image: url(img/spreg.png);}
+#btnAbout {background-image: url(img/about.png);}
+</style>
+<script src="js/jquery.min.js"></script>
+<script src="js/d3.v3.min.js"></script>
+<script src="js/geoviz.js"></script>
+<script src="js/utils.js"></script>
+<link rel="stylesheet" href="css/ui-lightness/jquery-ui-1.10.4.custom.min.css">
+<script src="js/jquery-ui-1.10.4.custom.min.js"></script>
+<script src="js/list.min.js"></script>
+<script>
+/*
+layerDict
+  {
+    "uuid1": {
+      data: json object,
+      basemap: GeoVizMap object,
+      maps: [QuantileMap object, ...],
+      plots: [ScatterPlot object, ...],
+    },
+    "uuid2": {
+      data: json object,
+      basemap: GeoVizMap object,
+      maps: [QuantileMap object, ...],
+      plots: [ScatterPlot object, ...],
+    },
+    ...
+  }
+*/
+var layerDict = {};
+var socket;
+var tempMsg;
+
+$(document).ready(function() {
+  //////////////////////////////////////////////////////////////
+  // Local Storage Brushing/Linking
+  //////////////////////////////////////////////////////////////
+  localStorage.clear();
+  $(window).bind('storage', function(e) {
+    var uuid = localStorage.getItem('HL_LAYER');
+    
+    if ( uuid in layerDict ) {
+      var select_ids = localStorage.getItem('HL_IDS').split(",");
+      for ( var i=0; i<select_ids.length; i++ ) {
+        select_ids[i] = parseInt(select_ids[i]);
+      }
+      var layer = layerDict[uuid];
+      layer.basemap.highlight(select_ids, "nolinking");
+      for (var i=0, n=layer.maps.length; i< n; i++) {
+        layer.maps[i].highlight(select_ids, "nolinking");
+      }
+      for (var i=0, n=layer.plots.length; i< n; i++) {
+        layer.plots[i].highlight(select_ids, "nolinking");
+      }
+    }
+  });
+  
+  //////////////////////////////////////////////////////////////
+  // WebSocket Server Communications
+  //////////////////////////////////////////////////////////////
+  if (! ("WebSocket" in window)) WebSocket = MozWebSocket; // firefox
+  socket = new WebSocket("ws://localhost:9000");
+  
+  // open the socket
+  socket.onopen = function(event) {
+    //socket.send('{connected:'+ pageid + '}');
+    // handle msg from server
+    socket.onmessage = function(e) {
+      try {
+        msg = JSON.parse(e.data);
+        tempMsg = msg;
+        console.log(msg);
+        switch ( msg.command ) {
+          case "check_active":
+            var uuid = msg["uuid"];
+            if ($('#'+uuid).length > 0){
+              socket.send('{"command":"check_active", "response":"OK"}');
+            } else {
+              socket.send('{"command":"check_active", "response":"FAIL"}');
+            }
+            break;
+          case "add_layer":
+            add_layer(msg);
+            socket.send('{"command":"add_layer", "response":"OK"}');
+            break;
+          case "remove_layer":
+            break;
+          case "select":
+            var uuid = msg["uuid"];
+            var ids = msg["data"];
+            select(msg);
+            socket.send("OK");
+            break;
+          case "clear_select":
+            break;
+          case "get_selected":
+            var uuid = msg["uuid"];
+            if (uuid == localStorage.getItem('HL_LAYER')) {
+              var select_ids = localStorage.getItem('HL_IDS');
+              var rsp = '{"uuid":"'+uuid+'","ids":"'+select_ids+'"}';
+              socket.send(rsp);
+            }
+            break;
+          case "classless_map":
+            break;
+          case "lisa_map":
+            lisa_map(msg);
+            socket.send("OK");
+            break;
+          case "quantile_map":
+            if ("basemap" in msg) {
+              window[msg["basemap"]](msg);
+            } else {
+              quantile_map(msg);
+            }
+            socket.send("OK");
+            break;
+          case "equal_interval_map":
+            break;
+          case "fisher_jenks_map":
+            break;
+          case "histogram":
+            break;
+          case "moran_scatter_plot":
+            moran_scatter_plot(msg); 
+            socket.send("OK");
+            break;
+          case "scatter_plot":
+            scatter_plot(msg); 
+            socket.send("OK");
+            break;
+          case "scatter_plot_matrix":
+            scatter_plot_matrix(msg); 
+            socket.send("OK");
+            break;
+          case "pcp":
+            break;
+          default:
+        };
+      } catch (err) {
+        console.error("Parsing server msg error:", msg, err);            
+      }
+    }
+  };
+  //////////////////////////////////////////////////////////////
+  //  Init UI
+  //////////////////////////////////////////////////////////////
+  $('#btnCreateW, #btnSpreg, #btnNewMap').css("opacity",1);
+  $('#btnCreateW').click(function(){
+    // pop-up weights creation dialog
+    //if (localStorage.getItem('HL_LAYER') != undefined) {
+      $('#dialog-weights').dialog('open');
+   //}
+  });
+  
+  //////////////////////////////////////////////////////////////
+  //  Drag & Drop
+  //////////////////////////////////////////////////////////////
+  var reader;
+  var progress = document.querySelector('.percent');
+  function updateProgress(evt) {
+    // evt is an ProgressEvent.
+    if (evt.lengthComputable) {
+      var percentLoaded = Math.round((evt.loaded / evt.total) * 100);
+      // Increase the progress bar length.
+      if (percentLoaded < 100) {
+        progress.style.width = percentLoaded + '%';
+        progress.textContent = percentLoaded + '%';
+      }
+    }
+  }
+  function handleFileSelect(evt) {
+    $("#"+evt.target.id).css("color", "#bbb");
+    evt.stopPropagation();
+    evt.preventDefault();
+  
+    // Reset progress indicator on new file selection.
+    progress.style.width = '0%';
+    progress.textContent = '0%';
+  
+    var formData = new FormData(),
+        files = evt.dataTransfer.files, // FileList object.
+        bJson = 0, bShp = [0, 0, 0],
+        shpFileName = "", shpFile;
+    $.each(files, function(i, f) {
+      var name = f.name,
+          suffix = getSuffix(name);
+      if (suffix === 'geojson' || suffix === 'json') {
+        bJson = 1;
+        shpFileName = name;
+        shpFile = f;
+      } else if (suffix === "shp") {
+        bShp[0] = 1;
+        shpFileName = name;
+        shpFile = f;
+      } else if (suffix === "shx") {
+        bShp[1] = 1;
+      } else if (suffix === "dbf") {
+        bShp[2] = 1;
+      }
+    });
+    // check files
+    if (!bJson && !bShp[0] && !bShp[1] && !bShp[2]) {
+      ShowMsgBox("Error", "Please drag&drop either one json/geojson file, or three files (*.shp, *.dbf and *.shx) ")
+      return false;
+    } else if (!bJson && (!bShp[0] || !bShp[1] || !bShp[2])) {
+      ShowMsgBox("Error", "Please drag&drop three files (*.shp, *.dbf and *.shx)  at the same time. (Tips: use ctrl (windows) or command (mac) to select multiple files.)")
+      return false;
+    } 
+    $.each(files, function(i, f) {
+      if ($.inArray(getSuffix(f.name), ['json','geojson','shp','shx','dbf'] ) >=0) {
+        formData.append('userfile', f, f.name);
+      }
+    });
+    // upload files to server
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', './cgi-bin/upload.py');
+    xhr.onload = function() {
+      console.log("[Upload]", this.responseText);
+      try{
+        data = JSON.parse(this.responseText);
+        if ( data['uuid'] != undefined) {
+          var uuid = data["uuid"],
+              path = data["path"];
+          localStorage['HL_LAYER']= uuid;
+          socket.send('{"command":"new_data", "uuid":"'+uuid+'","path":"'+path+'"}');
+        }
+      } catch(e){
+        console.log("[Error][Upload Files]", e);
+      }
+      // Ensure that the progress bar displays 100% at the end.
+      progress.style.width = '100%';
+      progress.textContent = '100%';
+      setTimeout("document.getElementById('progress_bar').className='';", 2000);
+    }; 
+    xhr.upload.onprogress = updateProgress;
+    xhr.send(formData);
+    document.getElementById('progress_bar').className = 'loading';
+  }
+  function handleDragOver(evt) {
+    evt.stopPropagation();
+    evt.preventDefault();
+    evt.dataTransfer.dropEffect = 'copy'; // Explicitly show this is a copy.
+    $("#"+evt.target.id).css("color", "black");
+  }
+
+  function handleDragOut(evt) {
+    $("#"+evt.target.id).css("color", "#bbb");
+  }
+
+  // Setup the dnd listeners.
+  var dropZone = document.getElementById('drop_zone');
+  dropZone.addEventListener('dragover', handleDragOver, false);
+  dropZone.addEventListener('dragleave', handleDragOut, false);
+  dropZone.addEventListener('drop', handleFileSelect, false);
+
+  $('#dlg-msg').hide();
+});
+
+function ShowMsgBox(title, content) {
+  $("#msg-title").text(title);
+  $("#msg-content").text(content);
+  $('#dlg-msg').dialog('open');
+}
+/*
+PySal can send a command "add_layer:{uri:abc.shp}" to ws server.
+Ws serverthen notifies all app web pages.--- ? Let's make it simple:
+There is only one main web page that communicate with WS server.
+This main web page can popup many child/sub pages for different maps/plots, 
+and they will communicate with each other using LocalStorage.
+
+If the user send "add_layer" command again with different data. This main page
+should stack the new layer as multi-layer scenario.
+*/
+var add_layer = function(o){
+  var uuid = o.uuid;
+  if ( "uuid" in o && $('#'+o["uuid"]).length ){
+    // add layer in an existing map
+    uuid = o["uuid"];
+    var json_path = uuid + ".json";
+    var basemap = layerDict[uuid].basemap;
+    
+    d3.json(json_path, function(data) {
+      basemap.add_layer(data); 
+    });
+    
+  } else {
+    var json_path = uuid + ".json";
+    $('<canvas id="' + uuid + '" width="100%" height="100%"></canvas>')
+      .appendTo($('#map-container'));
+    d3.json(json_path, function(data) {
+      var basemap = new GeoVizMap(data, $('#'+uuid));
+      layerDict[uuid] = {
+        "data" : data, 
+        "basemap" : basemap,
+        "maps": [],
+        "plots": [],
+      };
+      // fill dialogs
+      if (data) {
+        var field_names = [];
+        for (var field in data.features[0].properties) {
+          field_names.push(field);
+        }
+        field_names.sort();
+        // in weights creation dialog
+        $('#sel-w-id').find('option').remove().end();
+        $('#sel-w-id').append($('<option>', {value: ""}).text(""));
+        $.each(field_names, function(i, field_name) {
+          //if ( fields[field_name] != "String" ) {
+            $('#sel-w-id').append($('<option>', {value: field_name}).text(field_name));
+          //}
+        });
+        /* in regression dialog
+        if ( !$('#y_box').find(".placeholder")) 
+          $('#y_box').find('li').remove().end();
+        if ( !$('#x_box').find(".placeholder")) 
+          $('#x_box').find('li').remove().end();
+        if ( !$('#ye_box').find(".placeholder")) 
+          $('#ye_box').find('li').remove().end();
+        if ( !$('#inst_box').find(".placeholder")) 
+          $('#inst_box').find('li').remove().end();
+        if ( !$('#r_box').find(".placeholder")) 
+          $('#r_box').find('li').remove().end();
+        $('#ul-x-variables').find('li').remove().end();
+        $.each(field_names, function(i, field_name) {
+          if ( fields[field_name] != "String" ) {
+            var item = $('#ul-x-variables').append('<li><p class="name">'+field_name+'</p></li>');
+          }
+        });
+        $( "#vars ul li" ).draggable({ helper: "clone" });
+        new List('vars', {valueNames:['name']});
+      */ 
+      }
+    });
+  }
+  $('#loading').remove();
+  
+  return uuid;
+};
+
+// Test
+/*
+d3.json("http://127.0.0.1:8000/xun/media/temp/columbus.json", 
+  function(error, json) {
+    add_layer({"uuid": "abcd1234", "data": json});
+  }
+);
+*/
+  
+/*
+There are 2 options to open a quantile map: 1) in current main page 2) in a
+pop-up window/page, which can be managed by the main page. Ideally, the newly
+created quantile map in the main page can also be poped up in a new window.
+
+*/
+var quantile_map = function(o) {
+  //Let's try the popup window first.
+  var w = window.open(
+    'map.html?type=quantile',
+    "_blank",
+    "width=600, height=500, scrollbars=yes"
+  );
+  //The layerDict can be accessed by quantile_map pop-up window.
+  //The newly creately quantile map will be added to layerDict[uuid].maps.
+};
+
+var lisa_map = function(o) {
+  //Let's try the popup window first.
+  var w = window.open(
+    'map.html?type=lisa',
+    "_blank",
+    "width=600, height=500, scrollbars=yes"
+  );
+};
+
+var leaflet_map = function(o) {
+  //Let's try the popup window first.
+  var w = window.open(
+    'leaflet_map.html?type=quantile',
+    "_blank",
+    "width=900, height=700, scrollbars=yes"
+  );
+};
+
+/*
+For scatter plot, the table data should be used. 
+*/
+var moran_scatter_plot = function(o) {
+  var w = window.open(
+    'moran_scatter.html', 
+    "_blank",
+    "width=800, height=700, scrollbars=yes"
+  );
+  //The newly creately scatter plot will be added to layerDict[uuid].plots.
+};
+
+var scatter_plot = function(o) {
+  var w = window.open(
+    'scatterplot_loess.html', 
+    "_blank",
+    "width=900, height=650, scrollbars=yes"
+  );
+  //The newly creately scatter plot will be added to layerDict[uuid].plots.
+};
+var scatter_plot_matrix = function(o) {
+  var w = window.open(
+    'scatterplot.html', 
+    "_blank",
+    "width=600, height=500, scrollbars=yes"
+  );
+  //The newly creately scatter plot will be added to layerDict[uuid].plots.
+};
+
+/*
+The message for brushing/linking contains 1) layer uuid, 2) data.
+The data could be a list of highlighted object ids, e.g. [1,3,5,6,7..]
+*/
+var select = function(o) {
+  for(var uuid in layerDict) {
+    if ( uuid == o.uuid ) { 
+      var basemap = layerDict[uuid].basemap;
+      console.log(basemap, o.data);
+      basemap.highlight(o.data);
+      for(var map in layerDict[uuid].maps) {
+        map.highlight(o.data);
+      }
+      for(var plot in layerDict[uuid].plots) {
+        plot.highlight(o.data);
+      }
+    }
+  }
+};
+
+var clear_select = function(o) {
+  for(var uuid in layerDict) {
+    if ( uuid == o.uuid ) { 
+      for(var map in layerDict[uuid].maps) {
+        map.clear_highlight();
+      }
+      for(var plot in layerDict[uuid].plots) {
+        plot.clear_highlight();
+      }
+    }
+  }
+};
+</script>
+</head>
+
+<body>
+<div id="header"> 
+  <div class="container">
+    <img src="img/cloud.png"/>
+    <font style="color: #666;" size=16 face="Century Gothic">{</font>
+    <font style="color: #666; font-size: 30px">Web Portal for </font>
+    <font style="color: #666; font-size: 30px" face="Copperplate">PySAL</font>
+    </font><font style="color: #666;" size=16 face="Century Gothic">}</font>
+  </div>
+</div>
+
+
+<table width="100%">
+  <tr><td valign="top" width="30">
+    <div id="toolbar">
+      <div style="clear: left;"></div>
+      <table class="toolbar_tbl" align="left" >
+        <tr><td><div class="block_button" id="btnOpenData"></div></td>
+        <td><div class="block_button" id="btnCreateW"></div></td>
+        <td><div class="block_button" id="btnSpreg"></div></td>
+        <td><div class="block_button" id="btnAbout"></div></td>
+        <td><div class="block_button" id="btnAddLayer"></div></td> 
+        <td><div class="block_button" id="btnSave"></div></td> 
+        <td><div class="block_button" id="btnShowTable"></div></td> 
+        <td><div class="block_button" id="btnWHistogram"></div></td> 
+        <td><div class="block_button" id="btnNewMap"></div></td> 
+        <td><div class="block_button" id="btnKDE"></div></td> 
+        <td><div class="block_button" id="btnScatterPlot"></div></td> 
+        <td><div class="block_button" id="btnHist"></div></td> 
+        <td><div class="block_button" id="btnPCP"></div></td> 
+        <td><div class="block_button" id="btnLISA"></div></td> 
+        </tr>
+      </table>
+    </div>
+  </td>
+  </tr>
+  <tr>
+  <td>
+    <div id="file_div"> 
+      <div id="main_div" style="width: 80%;margin: 0 auto;">
+        <div id="file_choose_div" style="width: 100%; margin: 0 auto;">
+            <div id="drop_zone">Drop files here
+              <p style="font-size:12px;"><label id="lbl-drop-json">*.json</label>&nbsp;&nbsp;or &nbsp;&nbsp;
+              <label  id="lbl-drop-shp">*.shp</label>&nbsp;<label id="lbl-drop-dbf">*.dbf</label>
+              &nbsp;<label id="lbl-drop-shx">.shx</label>&nbsp;&nbsp;or &nbsp;&nbsp;
+              <label>*.zip</label></p>
+            </div>
+            <div id="progress_bar"><div class="percent">0%</div></div>
+      </div>
+    </div>
+  </td>
+</tr>
+</table>
+<div id="map-container" style="margin-top:20px;border: 0px solid red;height: 100px;"></div>
+
+<!--
+-->
+
+<div id="dialog-weights"  title="Weights Creation Dialog">
+  <style>
+  .ui-widget-overlay { background: #aaa repeat-x; opacity: .8;}
+  table { border-spacing: 0;}
+  th { text-align: left; padding: 10px 0 10px 0; }
+  td { text-align: left;}
+  .custom-combobox { position: relative; display: inline-block;}
+  .custom-combobox-toggle {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    margin-left: -1px;
+    padding: 0;
+    /* support: IE7 */
+    *height: 1.7em;
+    *top: 0.1em;
+  }
+  .custom-combobox-input {
+    margin: 0;
+    padding: 0.3em;
+  }
+  .dlg-loading {
+    background: white url('img/loading_small.gif') center center no-repeat;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+  }
+  </style>
+  <table>
+    <tr>
+      <td><li>Please input a Weights name</li></td>
+      <td><input type="text" id="txt-w-name"></td>
+    </tr>
+    <tr>
+      <td><li>Select an ID variable for weights file:</li></td>
+      <td valign="center">
+      <select id='sel-w-id'></select>
+      <img id="img-id-chk" src="img/checkmark.png">
+      <img id="img-id-nochk" src="img/uncheckmark.gif">
+      <img id="img-id-spin" src="img/loading_small.gif">
+      </td>
+    </tr>
+  </table>
+  <br/>
+  <br/>
+  <div id="tabs-dlg-weights">
+    <ul>
+      <li><a href="#tabs-1">Contiguity</a></li>
+      <li><a href="#tabs-2">Distance</a></li>
+      <li><a href="#tabs-3">Adaptive Kernel</a></li>
+    </ul>
+    <div id="tabs-1">
+      <form id="cont-form">
+        <table>
+          <tr>
+            <td>Contiguity Type</td>
+            <td>
+              <select id="sel-cont-type">
+                <option value="0" selected>Rook</option>
+                <option value="1">Queen</option>
+              </select>
+            </td>
+          </tr>
+          <tr>
+            <td>Order of Contiguity</td>
+            <td><input id="spn-cont-order" value=1></td>
+          </tr>
+          <tr>
+            <td>Include Lower Orders</td>
+            <td><input type="checkbox" id="cbx-cont-ilo"></td>
+          </tr>
+        </table>
+      </form>
+    </div>
+    <div id="tabs-2">
+      <table>
+        <tr>
+          <td>Select Distance Metric</td>
+          <td>
+            <select id="sel-dist-metr">
+              <option value="0" selected>Euclidean Distance</option>
+              <option value="1">Arc Distance (miles)</option>
+              <option value="2">Arc Distance (kilometers)</option>
+            </select>
+          </td>
+        </tr>
+        <tr height="22px">
+          <td><input type="radio" name="rdo-dist" id=0> k-Nearest Neighbors</td>
+          <td># of neighbors <input id="spn-dist-knn" value="1"></td>
+        </tr>
+        <tr>
+          <td><input type="radio" name="rdo-dist" id=1>Binary Distane Band</td>
+          <td>
+            <input type="text" id="txt-dist-thr" value="0.0" style="float:left;margin-right:100px;width:100px">
+            <div id="dist-slider" style="margin: 5px 0 0 120px;"></div>
+          </td>
+        </tr>
+        <tr>
+          <td><input type="radio" name="rdo-dist" id=2>Power of Inverse Distance</td>
+          <td><input id="spn-pow-idst" value="1"></td>
+        </tr>
+      </table>
+    </div>
+    <div id="tabs-3">
+      <table>
+        <tr>
+          <td>Select Kernel Function Type</td>
+          <td>
+              <select id="sel-kel-type">
+              <option value="0" selected>Uniform</option>
+              <option value="1">Triangular</option>
+              <option value="2">Quadratic</option>
+              <option value="3">Quartic</option>
+              <option value="4">Gaussian</option>
+              </select>
+          </td>
+        </tr>
+        <tr>
+          <td>Number of Neighbors</td>
+          <td><input type="text" id="txt-kel-nn" value="1"></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+  <br/><br/><br/>
+  <table>
+    <tr>
+      <td><li>Select to download a Weights file</li></td>
+      <td><select id='sel-w-type'>
+          <option value="gal" selected>GAL</option>
+          <option value="gwt">GWT</option>
+          <option value="kwt">KWT</option>
+        </select>
+      </td>
+      <td><select id='sel-w-files'></select></td>
+    </tr>
+  </table>
+  <div class="dlg-loading"></div>
+</div> 
+<script>
+// weights creation javascript code
+$('#sel-w-files').change( function() {
+  var layer_uuid = localStorage['HL_LAYER'];
+  var w_name = $('#sel-w-files').val();
+  if ( w_name && layer_uuid ) {
+    var w_type = $('#sel-w-type').val();
+    $.download(
+      "../download_w/",
+      "layer_uuid=" + layer_uuid + "&w_name=" + w_name + "&w_type=" + w_type,
+      "get"
+    ); 
+  }
+  $(this).prop("selectedIndex", -1);
+});
+
+$('.dlg-loading').hide();
+$("#img-id-chk, #img-id-nochk, #img-id-spin").hide();          
+
+$('#dist-slider').slider({
+  min: 0,
+  max: 100,
+  slide: function( event, ui ) { $('#txt-dist-thr').val(ui.value); }
+});
+$('#spn-pow-idst, #spn-cont-order, #spn-dist-knn').spinner();
+$('#tabs-dlg-weights').tabs();
+$('#sel-w-id').prop("selectedIndex", -1);
+
+$( "#dialog-weights" ).dialog({
+  height: 380,
+  width: 480,
+  autoOpen: false,
+  modal: true,
+  dialogClass: "dialogWithDropShadow",
+  buttons: [
+    {
+      text: "Create",
+      id: "btn-create-w",
+      click: function() {
+        var layer_uuid = localStorage['HL_LAYER'];
+        if ( layer_uuid == undefined ) return;
+        var w_name = $('#txt-w-name').val(),
+        w_id = $('#sel-w-id').find(":selected").val(),
+        active = $('#tabs-dlg-weights').tabs("option","active");
+        if ( w_name.length == 0 ) {
+          ShowMsgBox("Error", "Weights name can't be empty.");
+          return;
+        }
+        if ( w_id.length == 0 || $('#img-id-nochk').is(":visible") ) {
+          ShowMsgBox("Error", "An unique ID for weights creation is required.");
+          return;
+        }
+        var post_param = {
+          'layer_uuid': layer_uuid,
+          'w_id': w_id, 'w_name': w_name, 
+          csrfmiddlewaretoken: '{{ csrf_token }}',
+        };
+          
+        if ( active == 0 ) {
+          var cont_type = $('#sel-cont-type').find(":selected").val(),
+              cont_order = $('#spn-cont-order').val(),
+              cont_ilo = $('#cbx-cont-ilo').prop("checked");
+              post_param['cont_type'] = cont_type;
+              post_param['cont_order'] = cont_order;
+              post_param['cont_ilo'] = cont_ilo;
+  
+        } else if ( active == 1) {
+          var dist_value = "",
+              dist_metric = $('#sel-dist-metr').val(),
+              dist_method =$('input:radio[name=rdo-dist]:checked').attr("id");
+    
+          if ( dist_method == 0 ) {
+            dist_value = $('#spn-dist-knn').val();
+          } else if ( dist_method == 1 ) {
+            dist_value = $('#txt-dist-thr').val();
+          } else if ( dist_method == 2 ) {
+            dist_value = $('#txt-dist-thr').val() + "," + $('#spn-pow-idst').val();
+          } else {
+            ShowMsgBox("","Please select a distance method.");
+            return;
+          }
+  
+          post_param['dist_metric'] = dist_metric;
+          post_param['dist_method'] = dist_method;
+          post_param['dist_value'] = dist_value;
+
+        } else if ( active == 2) {
+          post_param['kernel_type'] = $("#sel-kel-type").val(); 
+          post_param['kernel_nn'] = $("#txt-kel-nn").val();
+        }
+  
+        // submit request
+        $("#btn-create-w").attr("disabled",true).fadeTo(0, 0.5);
+        $(html_load_img).insertBefore("#btn-create-w");
+        post_param['w_type'] = active;
+        $.post("../create_weights/", post_param, function(){})
+          .done(function( data ) {
+            console.log("create_weights", data);
+            if ( data["success"] == 1 ) {
+              $('#txt-w-name').val("").next().remove();
+              $('#sel-w-id').next().remove();
+              loadWnames();
+              $('#sel-w-id').prop("selectedIndex", -1);
+              ShowMsgBox("","Create weights done.");
+              return;
+            }
+            ShowMsgBox("Error", "Create weights failed.");
+          })
+          .fail(function() { ShowMsgBox("Error", "Create weights failed."); })
+          .always(function(){
+            $("#btn-create-w").attr("disabled",false)
+              .fadeTo(0, 1)
+              .prev().remove();
+          });
+        }
+      },
+      {
+        text: "Close",
+        click: function() {
+          $( this ).dialog( "close" );
+        },
+      }
+    ]
+});
+</script>
+
+<div id="dlg-msg" title="Message">
+  <div class="text-align:left;">
+    <p class="font-weight:bold;" id="msg-title"></p>
+    <p id="msg-content" class="text-align:left;"></p>
+  </div>
+</div>
+
+</body>
+</html>

@@ -122,6 +122,10 @@ $(document).ready(function() {
             break;
           case "histogram":
             break;
+          case "moran_scatter_plot":
+            moran_scatter_plot(msg); 
+            socket.send("OK");
+            break;
           case "scatter_plot":
             scatter_plot(msg); 
             socket.send("OK");
@@ -228,6 +232,15 @@ var leaflet_map = function(o) {
 /*
 For scatter plot, the table data should be used. 
 */
+var moran_scatter_plot = function(o) {
+  var w = window.open(
+    'moran_scatter.html', 
+    "_blank",
+    "width=800, height=700, scrollbars=yes"
+  );
+  //The newly creately scatter plot will be added to layerDict[uuid].plots.
+};
+
 var scatter_plot = function(o) {
   var w = window.open(
     'scatterplot_loess.html', 
@@ -236,7 +249,6 @@ var scatter_plot = function(o) {
   );
   //The newly creately scatter plot will be added to layerDict[uuid].plots.
 };
-
 var scatter_plot_matrix = function(o) {
   var w = window.open(
     'scatterplot.html', 

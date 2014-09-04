@@ -1,7 +1,7 @@
 import pysal
 import numpy as np
 import os.path
-import json, shutil, webbrowser, md5, subprocess, re
+import json, shutil, webbrowser, md5, subprocess, re, threading, sys
 from uuid import uuid4
 from websocket import create_connection
 import shapefile
@@ -11,7 +11,52 @@ __all__=['clean_ports','setup','getuuid','shp2json','show_map','get_selected', '
 
 WS_SERVER = "ws://localhost:9000"
 SHP_DICT = {}
+DBF_DICT = {}
+R_SHP_DICT = {}
+R_DBF_DICT = {}
 
+class answerThread(threading.Thread):
+    """
+    Handle commands sent from Web Pages
+    """
+    def __init__(self, parent):
+        threading.Thread.__init__(self)
+        self.parent = parent
+        global WS_SERVER 
+        self.ws = create_connection(WS_SERVER)
+        
+    def run(self):
+        print "[Answering] running..." 
+        global SHP_DICT
+        count = 1
+        while True:
+            rsp = self.ws.recv()
+            print "[Answering] " + rsp
+            try:
+                msg = json.loads(rsp)
+                uuid = msg["uuid"]
+                command = msg["command"]
+                if command == "new_data":
+                    path = msg["path"]
+                    ext = path.split(".")[-1]
+                    if ext == "shp":
+                        dbf_path = path[:-3] + "dbf"
+                        shp = pysal.open(path,'r')
+                        dbf = pysal.open(dbf_path, 'r')
+                        SHP_DICT[shp] = uuid
+                        DBF_DICT[dbf] = uuid
+                        R_SHP_DICT[uuid] = shp
+                        R_DBF_DICT[uuid] = dbf
+                        
+                        self.parent.show_map(shp)
+                    
+                elif command == "create_w":
+                    pass
+                    
+            except:
+                pass
+        print "[Answering] exiting..." 
+        
 def clean_ports():
     ports = ['9000','8000']
     for p in ports:
@@ -49,6 +94,13 @@ def getuuid(shp):
     Generate UUID using absolute path of shapefile
     """
     return md5.md5(shp.dataPath).hexdigest()
+   
+def json2shp(uuid, json_path):
+    global SHP_DICT
+    if uuid in SHP_DICT.values():
+        return
+       
+    print "creating shp from geojson..." 
     
 def shp2json(shp,rebuild=False):
     """
@@ -251,8 +303,8 @@ def moran_scatter_plot(shp, dbf, var, w):
     y = np.array(dbf.by_col[var])
     y_lag = pysal.lag_spatial(w, y)
    
-    y = (y - y.mean()) / y.std()
-    y_lag = (y_lag - y_lag.mean()) / y_lag.std()
+    y_z = (y - y.mean()) / y.std()
+    y_lag_z = (y_lag - y_lag.mean()) / y_lag.std()
     
     global SHP_DICT 
     uuid = SHP_DICT[shp]
@@ -262,9 +314,9 @@ def moran_scatter_plot(shp, dbf, var, w):
     msg = {
         "command": "moran_scatter_plot",
         "uuid":  uuid,
-        "title": "Moran Scatter plot for variables [%s]" % var,
-        "data": {
-        },
+        "title": "Moran Scatter plot for variable [%s]" % var,
+        "data": { "x": y_z.tolist(), "y" : y_lag_z.tolist() },
+        "fields": [var, "lagged %s" % var]
     }
     str_msg = json.dumps(msg)
     ws.send(str_msg)
@@ -309,17 +361,22 @@ def scatter_plot_matrix(shp, fields):
     
 def test():
     # Test
-    setup()
     shp = pysal.open(pysal.examples.get_path('NAT.shp'),'r')
     dbf = pysal.open(pysal.examples.get_path('NAT.dbf'),'r')
+    
     show_map(shp)
     
+    ids = get_selected(shp)
+    print ids
+    
+    w = pysal.rook_from_shapefile(pysal.examples.get_path('NAT.shp'))
+    moran_scatter_plot(shp, dbf, "HR90", w)
+    
     scatter_plot(shp, ["HR90", "PS90"])
+    scatter_plot_matrix(shp, ["HR90", "PS90"])
     
     quantile_map(shp, dbf, "HC60", 5, basemap="leaflet_map")
     
-    #ids = get_selected(shp)
-    #print ids
     
     select_ids = [i for i,v in enumerate(dbf.by_col["HC60"]) if v < 20.0]
     select(shp, ids=select_ids)
@@ -328,11 +385,18 @@ def test():
     quantile_map(shp, dbf, "HC60", 5)
     
     
-    w = pysal.rook_from_shapefile(pysal.examples.get_path('NAT.shp'))
     lisa_map(shp, dbf, "HC60", w)
     
-    scatter_plot_matrix(shp, ["HC60", "HC70"])
         
     #show_table(shp)
-        
-test() 
+       
+def start():
+    setup()
+    th = answerThread(sys.modules[__name__])
+    th.start()
+    
+if __name__ == '__main__':
+    setup()
+    th = answerThread(sys.modules[__name__])
+    th.start()
+    #test() 

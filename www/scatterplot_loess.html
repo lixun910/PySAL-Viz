@@ -68,8 +68,8 @@ $(document).ready(function() {
     
     var select_ids = localStorage.getItem('HL_IDS').split(",");
     if ( select_ids.length > 0) {
-      d3.selectAll("circle").each(function(d) { d.selected = false; });
-      var points = d3.selectAll("circle")[0];
+      d3.selectAll("rect").each(function(d) { d.selected = false; });
+      var points = d3.selectAll("rect")[0];
       for ( var i=0; i<select_ids.length; i++ ) {
         $(points[selected_ids[i]]).attr("class", "point selected"); 
       }
@@ -174,11 +174,12 @@ $(document).ready(function() {
     // draw dots
     var point = svg.selectAll(".point")
         .data(data)
-      .enter().append("circle")
+      .enter().append("rect")
         .attr("class", "point")
-        .attr("r", 3.5)
-        .attr("cx", xMap)
-        .attr("cy", yMap)
+        .attr("x", xMap)
+        .attr("y", yMap)
+        .attr("width", 2)
+        .attr("height", 2)
         .attr("id", function(d,i){return i;});
         
     // Render the fitted line
@@ -319,7 +320,7 @@ $(document).ready(function() {
 </script>
 <body>
 <div id="map-container" style="align:center; border: 0px solid red;height: 100%;">
-  <div id="title" style="margin:10px;">Title</div>
+  <div id="title" style="font-size:18px; margin:10px;">Title</div>
 </div>
 <div id="selector" style="margin:10px; float: left;">
  <table><tr><td width=250>Change the bandwidth of fitted LOESS curve:</td>

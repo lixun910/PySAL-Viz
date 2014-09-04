@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-import SimpleHTTPServer
+import SimpleHTTPServer, CGIHTTPServer
 
-class MyHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
+class MyHTTPRequestHandler(CGIHTTPServer.CGIHTTPRequestHandler):
     def end_headers(self):
         self.send_my_headers()
 
