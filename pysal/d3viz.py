@@ -57,6 +57,10 @@ class answerThread(threading.Thread):
                 pass
         print "[Answering] exiting..." 
         
+def get_all_shp():
+    global SHP_DICT
+    return SHP_DICT.keys()
+
 def clean_ports():
     ports = ['9000','8000']
     for p in ports:
@@ -390,13 +394,11 @@ def test():
         
     #show_table(shp)
        
-def start():
-    setup()
-    th = answerThread(sys.modules[__name__])
-    th.start()
+def start_answermachine():
+    am = answerThread(sys.modules[__name__])
+    am.start()
     
 if __name__ == '__main__':
     setup()
-    th = answerThread(sys.modules[__name__])
-    th.start()
+    start_answermachine()
     #test() 

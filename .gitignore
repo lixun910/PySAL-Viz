@@ -1,3 +1,7 @@
 *.pyc
 *.json
 *.csv
+*.shp
+*.dbf
+*.shx
+*.json

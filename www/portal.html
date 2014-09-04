@@ -51,6 +51,34 @@ body {
   border-right:2px solid #ccc;
   float: left;
 }
+#progress_bar {
+  margin: 10px 0;
+  padding: 3px;
+  border: 1px solid #000;
+  font-size: 14px;
+  clear: both;
+  opacity: 0;
+  -moz-transition: opacity 1s linear;
+  -o-transition: opacity 1s linear;
+  -webkit-transition: opacity 1s linear;
+}
+#progress_bar.loading {
+  opacity: 1.0;
+}
+#progress_bar .percent {
+  background-color: #99ccff;
+  height: auto;
+  width: 0;
+}
+.check_file {
+  background-image: url("img/checkmark.png");
+  background-repeat:no-repeat;
+  background-position:right; 
+}
+.uncheck_file {
+  color: red;
+  font-weight: bold;
+}
 #toolbar {
   width: 90%;
   height: 100px;
@@ -116,6 +144,12 @@ var layerDict = {};
 var socket;
 var tempMsg;
 
+function ShowMsgBox(title, content) {
+  $("#msg-title").text(title);
+  $("#msg-content").text(content);
+  $('#dlg-msg').dialog('open');
+}
+
 $(document).ready(function() {
   //////////////////////////////////////////////////////////////
   // Local Storage Brushing/Linking
@@ -151,6 +185,7 @@ $(document).ready(function() {
     //socket.send('{connected:'+ pageid + '}');
     // handle msg from server
     socket.onmessage = function(e) {
+      var msg;
       try {
         msg = JSON.parse(e.data);
         tempMsg = msg;
@@ -230,14 +265,47 @@ $(document).ready(function() {
   //////////////////////////////////////////////////////////////
   //  Init UI
   //////////////////////////////////////////////////////////////
+  
+  $('#divPop').hide();
+  jQuery.fn.popupDiv = function (divToPop, text) {
+  var pos=$(this).offset();
+  var h=$(this).height();
+  var w=$(this).width();
+  if (w == 0) w = 40;
+  if ( text != undefined ) {
+    $(divToPop).html(text);
+  }
+  $(divToPop).css({ left: pos.left + w , top: pos.top - h });
+  $(divToPop).show(function() {
+    setTimeout(function(){
+      $(divToPop).fadeOut('slow');
+    }, 2000);
+  });
+  };
   $('#btnCreateW, #btnSpreg, #btnNewMap').css("opacity",1);
+  $('#btnOpenData').popupDiv('#divPop','Start by click this button to load your data.');
+  $('#img-id-chk').hide();
+  $('#img-id-spin').hide();
+  $('#img-id-nochk').hide();
+
+  $( "#dlg-msg" ).dialog({
+    dialogClass: "dialogWithDropShadow",
+    width: 400,
+    height: 200,
+    autoOpen: false,
+    modal: true,
+    buttons: {
+      OK: function() {$( this ).dialog( "close" );},
+    }
+  });
+
+  $('#dlg-msg').hide();
   $('#btnCreateW').click(function(){
     // pop-up weights creation dialog
     //if (localStorage.getItem('HL_LAYER') != undefined) {
       $('#dialog-weights').dialog('open');
    //}
   });
-  
   //////////////////////////////////////////////////////////////
   //  Drag & Drop
   //////////////////////////////////////////////////////////////
@@ -303,7 +371,7 @@ $(document).ready(function() {
     xhr.onload = function() {
       console.log("[Upload]", this.responseText);
       try{
-        data = JSON.parse(this.responseText);
+        var data = JSON.parse(this.responseText);
         if ( data['uuid'] != undefined) {
           var uuid = data["uuid"],
               path = data["path"];
@@ -339,14 +407,9 @@ $(document).ready(function() {
   dropZone.addEventListener('dragleave', handleDragOut, false);
   dropZone.addEventListener('drop', handleFileSelect, false);
 
-  $('#dlg-msg').hide();
 });
 
-function ShowMsgBox(title, content) {
-  $("#msg-title").text(title);
-  $("#msg-content").text(content);
-  $('#dlg-msg').dialog('open');
-}
+
 /*
 PySal can send a command "add_layer:{uri:abc.shp}" to ws server.
 Ws serverthen notifies all app web pages.--- ? Let's make it simple:
@@ -533,6 +596,7 @@ var clear_select = function(o) {
 </head>
 
 <body>
+<div id="divPop" class="bubble">This is Popup Div.</div>
 <div id="header"> 
   <div class="container">
     <img src="img/cloud.png"/>
@@ -832,7 +896,7 @@ $( "#dialog-weights" ).dialog({
             if ( data["success"] == 1 ) {
               $('#txt-w-name').val("").next().remove();
               $('#sel-w-id').next().remove();
-              loadWnames();
+              //loadWnames();
               $('#sel-w-id').prop("selectedIndex", -1);
               ShowMsgBox("","Create weights done.");
               return;
