@@ -317,31 +317,6 @@ def shp2json(shp,rebuild=False):
     else:
         print "The geojson data has been created before. If you want re-create geojson data, please call shp2json(shp, rebuild=True)."
 
-def open_web_portal(shp):
-    global SHP_DICT
-    if not shp in SHP_DICT:
-        # Open a new web portal since this map is newly opened.
-        pass
-    else:
-        # Check if this map has already been opened in a web portal
-        uuid = SHP_DICT[shp]
-        global WS_SERVER 
-        ws = create_connection(WS_SERVER)
-        msg = {
-            "command": "check_active",
-            "uuid": uuid
-        }
-        str_msg = json.dumps(msg)
-        ws.send(str_msg)
-        print "send:", str_msg
-        rsp = ws.recv()
-        print "receive:", rsp
-        ws.close()
-        rsp = json.loads(rsp)
-        if rsp["response"] == "FAIL":
-            pass
-    
-    
 def show_map(shp):
     """
     Ideally, users need to open and process shapefile using:
