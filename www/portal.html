@@ -442,7 +442,7 @@ var add_layer = function(o){
     
   } else {
     var json_path = uuid + ".json";
-    $('<canvas id="' + uuid + '" width="100%" height="100%"></canvas>')
+    $('<canvas id="' + uuid + '" width=733 height=564></canvas>')
       .appendTo($('#map-container'));
     d3.json(json_path, function(data) {
       var basemap = new GeoVizMap(data, $('#'+uuid));
@@ -453,6 +453,8 @@ var add_layer = function(o){
         "plots": [],
       };
       // fill dialogs
+      var tip = "Map UUID:"+uuid+". <br/>You can use this uuid in python to interact with maps.";
+      $('#map-uuid').empty().html(tip);
       if (data) {
         var field_names = [];
         for (var field in data.features[0].properties) {
@@ -671,20 +673,22 @@ var response_spatial_regression = function(msg) {
 // Main Body
 ///////////////////////////////////////////////////////////////////////////////
 -->
-<div id="divPop" class="bubble">This is Popup Div.</div>
-<div id="header"> 
-  <div class="container">
-    <img src="img/cloud.png"/>
-    <font style="color: #666;" size=16 face="Century Gothic">{</font>
-    <font style="color: #666; font-size: 30px">Web Portal for </font>
-    <font style="color: #666; font-size: 30px" face="Copperplate">PySAL</font>
-    </font><font style="color: #666;" size=16 face="Century Gothic">}</font>
-  </div>
-</div>
-
-
-<table width="100%">
-  <tr><td valign="top" width="30">
+<table width="100%"> 
+  <tr>
+    <td height=145>
+    <div id="header"> 
+      <div class="container">
+        <img src="img/cloud.png"/>
+        <font style="color: #666;" size=16 face="Century Gothic">{</font>
+        <font style="color: #666; font-size: 30px">Web Portal for </font>
+        <font style="color: #666; font-size: 30px" face="Copperplate">PySAL</font>
+        </font><font style="color: #666;" size=16 face="Century Gothic">}</font>
+      </div>
+    </div>
+    </td>
+  </tr>
+  <tr>
+    <td valign="top" height=104>
     <div id="toolbar">
       <div style="clear: left;"></div>
       <table class="toolbar_tbl" align="left" >
@@ -708,7 +712,7 @@ var response_spatial_regression = function(msg) {
   </td>
   </tr>
   <tr>
-  <td>
+    <td height=171>
     <div id="file_div"> 
       <div id="main_div" style="width: 80%;margin: 0 auto;">
         <div id="file_choose_div" style="width: 100%; margin: 0 auto;">
@@ -721,10 +725,18 @@ var response_spatial_regression = function(msg) {
             <div id="progress_bar"><div class="percent">0%</div></div>
       </div>
     </div>
-  </td>
-</tr>
+    </td>
+  </tr>
+  <tr>
+    <td height=622>
+      <div id="map-container" style="margin-top:20px;border: 0px solid red;"></div>
+    </td>
+  </tr>
 </table>
-<div id="map-container" style="margin-top:20px;border: 0px solid red;height: 100px;"></div>
+<center>
+<div id="map-uuid" style="width:300px;align:center;"></div>
+</center>
+<div id="divPop" class="bubble">This is Popup Div.</div>
 
 <!--
 ///////////////////////////////////////////////////////////////////////////////

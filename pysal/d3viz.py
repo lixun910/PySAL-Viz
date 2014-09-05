@@ -16,7 +16,7 @@ DBF_DICT = {}
 R_SHP_DICT = {}
 R_DBF_DICT = {}
 
-class answerThread(threading.Thread):
+class AnswerMachine(threading.Thread):
     """
     Handle commands sent from Web Pages
     """
@@ -550,10 +550,32 @@ def start_webportal():
     global PORTAL
     PORTAL = "portal.html"
     setup()
-    am = answerThread(sys.modules[__name__])
+    am = AnswerMachine(sys.modules[__name__])
     am.start()
     
+def setup_cartodb(table_name="table_80f6b361d3143cee5a50ed3e27b07848"):
+    import urllib2, urllib
+    from cartodb import CartoDBAPIKey, CartoDBException
+    user =  'lixun910@mail.com'
+    API_KEY = '340808e9a453af9680684a65990eb4eb706e9b56'
+    cartodb_domain = 'lixun910'
+    
+    #sql = 'select cartodb_id, HR60, UE60, ST_AsGeoJSON(the_geom) as the_geom from %s' % table_name
+    sql = 'select * from %s' % table_name
+    url = 'https://%s.cartodb.com/api/v1/sql' % cartodb_domain
+   
+    params = {
+        'format': 'GeoJSON' ,
+        'api_key': API_KEY,
+        'q': sql,
+    }
+    
+    req = urllib2.Request(url, urllib.urlencode(params))
+    response = urllib2.urlopen(req)
+    content = response.read()
+    
 if __name__ == '__main__':
+    #setup_cartodb()
     setup()
     #start_answermachine()
     test() 
