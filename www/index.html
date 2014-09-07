@@ -160,7 +160,7 @@ var add_layer = function(o){
   if ( "uuid" in o && $('#'+o["uuid"]).length ){
     // add layer in an existing map
     uuid = o["uuid"];
-    var json_path = uuid + ".json";
+    var json_path = "./tmp/" + uuid + ".json";
     var basemap = layerDict[uuid].basemap;
     
     d3.json(json_path, function(data) {
@@ -168,7 +168,7 @@ var add_layer = function(o){
     });
     
   } else {
-    var json_path = uuid + ".json";
+    var json_path = "./tmp/" + uuid + ".json";
     $('<canvas id="' + uuid + '" width="100%" height="100%"></canvas>')
       .appendTo($('#map-container'));
     d3.json(json_path, function(data) {

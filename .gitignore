@@ -5,3 +5,6 @@
 *.dbf
 *.shx
 *.json
+*.cpg
+*.zip
+*.prj

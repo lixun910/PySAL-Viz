@@ -5,6 +5,7 @@ import json, shutil, webbrowser, md5, subprocess, re, threading, sys
 from uuid import uuid4
 from websocket import create_connection
 import shapefile
+import zipfile
 
 __author__='Xun Li <xunli@asu.edu>'
 __all__=['clean_ports','setup','getuuid','shp2json','show_map','get_selected', 'select','quantile_map','lisa_map','scatter_plot_matrix']
@@ -12,9 +13,7 @@ __all__=['clean_ports','setup','getuuid','shp2json','show_map','get_selected', '
 PORTAL = "index.html"
 WS_SERVER = "ws://localhost:9000"
 SHP_DICT = {}
-DBF_DICT = {}
 R_SHP_DICT = {}
-R_DBF_DICT = {}
 
 class AnswerMachine(threading.Thread):
     """
@@ -30,7 +29,7 @@ class AnswerMachine(threading.Thread):
         from weights_dispatcher import CreateWeights
         from gs_dispatcher import Spmodel, DEFAULT_SPREG_CONFIG
         print "[Answering] running..." 
-        global SHP_DICT, DBF_DICT, R_SHP_DICT
+        global SHP_DICT, R_SHP_DICT
         count = 1
         while True:
             rsp = self.ws.recv()
@@ -47,7 +46,6 @@ class AnswerMachine(threading.Thread):
                         shp = pysal.open(path,'r')
                         dbf = pysal.open(dbf_path, 'r')
                         SHP_DICT[shp] = uuid
-                        DBF_DICT[dbf] = uuid
                         
                         if not uuid in R_SHP_DICT:
                             R_SHP_DICT[uuid] = {}
@@ -295,7 +293,7 @@ def shp2json(shp,rebuild=False):
     
     print "creating geojson ..."
     current_path = os.path.realpath(__file__)    
-    www_path = "%s/../www/%s.json" % \
+    www_path = "%s/../www/tmp/%s.json" % \
         (current_path[0:current_path.rindex('/')], uuid)
    
     if not os.path.exists(www_path) or rebuild==True: 
@@ -553,29 +551,58 @@ def start_webportal():
     am = AnswerMachine(sys.modules[__name__])
     am.start()
     
-def setup_cartodb(table_name="table_80f6b361d3143cee5a50ed3e27b07848"):
+CARTODB_API_KEY = '340808e9a453af9680684a65990eb4eb706e9b56'
+CARTODB_DOMAIN = 'lixun910'
+
+def setup_cartodb(api_key, user):
+    global CARTODB_API_KEY, CARTODB_USER
+    CARTODB_API_KEY = api_key
+    CARTODB_USER = user
+
+def cartodb_get_data(table_name, fields=[]):
     import urllib2, urllib
-    from cartodb import CartoDBAPIKey, CartoDBException
-    user =  'lixun910@mail.com'
-    API_KEY = '340808e9a453af9680684a65990eb4eb706e9b56'
-    cartodb_domain = 'lixun910'
-    
-    #sql = 'select cartodb_id, HR60, UE60, ST_AsGeoJSON(the_geom) as the_geom from %s' % table_name
-    sql = 'select * from %s' % table_name
-    url = 'https://%s.cartodb.com/api/v1/sql' % cartodb_domain
-   
+    fields_str = '*'
+    if len(fields) > 0:
+        if "the_geom" not in fields:
+            fields.append("the_geom")
+        fields_str = ",".join(fields)
+    global CARTODB_API_KEY, CARTODB_DOMAIN
+    sql = 'select %s from %s' % (fields_str, table_name)
+    url = 'https://%s.cartodb.com/api/v1/sql' % CARTODB_DOMAIN
     params = {
-        'format': 'GeoJSON' ,
-        'api_key': API_KEY,
+        'format': 'shp' ,
+        'api_key': CARTODB_API_KEY,
         'q': sql,
     }
-    
     req = urllib2.Request(url, urllib.urlencode(params))
     response = urllib2.urlopen(req)
     content = response.read()
     
+    loc = os.path.realpath(__file__)    
+    loc = loc[0:loc.rindex('/')]
+    loc = loc[0:loc.rindex('/')] + "/www/tmp/"
+    ziploc = loc + "tmp.zip"
+    
+    o = open(ziploc, "wb")
+    o.write(content)
+    o.close()
+    
+    zf = zipfile.ZipFile(ziploc)
+    zf.extractall(loc)
+    
+    for filename in os.listdir(loc):
+        if filename.startswith("cartodb-query"):
+            os.rename(loc+filename, loc+table_name + filename[-4:])
+    return loc + table_name + ".shp"
+    
 if __name__ == '__main__':
-    #setup_cartodb()
+    setup_cartodb("340808e9a453af9680684a65990eb4eb706e9b56","lixun910")
+    table_name="table_80f6b361d3143cee5a50ed3e27b07848"
+    shp_path = cartodb_get_data(table_name,["the_geom"])
+    shp = pysal.open(shp_path)
+    shp2json(shp)
+    
     setup()
+    show_map(shp)
     #start_answermachine()
     test() 
