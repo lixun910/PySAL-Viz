@@ -565,10 +565,10 @@ def cartodb_get_data(table_name, fields=[]):
     if len(fields) > 0:
         if "the_geom" not in fields:
             fields.append("the_geom")
-        fields_str = ",".join(fields)
+        fields_str = ", ".join(fields)
     global CARTODB_API_KEY, CARTODB_DOMAIN
     sql = 'select %s from %s' % (fields_str, table_name)
-    url = 'https://%s.cartodb.com/api/v2/sql' % CARTODB_DOMAIN
+    url = 'https://%s.cartodb.com/api/v1/sql' % CARTODB_DOMAIN
     params = {
         'format': 'shp' ,
         'api_key': CARTODB_API_KEY,
@@ -605,30 +605,10 @@ def cartodb_get_mapid():
     response = urllib2.urlopen(req)
     content = response.read()    
     
-def cartodb_show_map(vizjson, table_name, var_name, var_color_scheme):
-    """
-    color scheme of variable: {'#ffff':[1,3,4,5...],..}
-    """
-    cartocss = ""
-    def group_consecutives(vals, step=1):
-        """Return list of consecutive lists of numbers from vals (number list)."""
-        run = []
-        result = [run]
-        expect = None
-        for v in vals:
-            if (v == expect) or (expect is None):
-                run.append(v)
-            else:
-                run = [v]
-                result.append(run)
-            expect = v + step
-        return result    
-    for clr, ids in var_color_scheme.iteritems():
-        for id in ids:
-            cartocss += "#%s [%s=%s]," % (table_name, var_name, id)
-        cartocss += "{polygon-fill:%s}" % clr
-    
+def cartodb_show_map(vizjson, table_name, var_name, cartosql, cartocss):
     global SHP_DICT 
+    if shp not in SHP_DICT:
+        SHP_DICT[shp] = getuuid(shp)
     uuid = SHP_DICT[shp]
     
     global WS_SERVER 
@@ -637,6 +617,7 @@ def cartodb_show_map(vizjson, table_name, var_name, var_color_scheme):
         "command": "cartodb_mymap",
         "uuid":  uuid,
         "title": "CartoDB map variables [%s]" % var_name,
+        "cartosql": cartosql,
         "cartocss": cartocss,
         "vizjson": vizjson,
         "table_name": table_name
@@ -674,42 +655,114 @@ def cartodb_create_map():
     #response = opener.open(req)    
     content = response.read()
     
-def cartodb_lisa_map(shp, dbf, var_name, w, vizjson, table_name):
-    
+def cartodb_lisa_map(shp, dbf, var, w, vizjson, table_name):
+    import StringIO
     y = dbf.by_col[var]
     lm = pysal.Moran_Local(np.array(y), w)
      
     bins = ["Not Significant","High-High","Low-High","Low-Low","Hight-Low"]
-    id_array = []
-    id_array.append([i for i,v in enumerate(lm.p_sim) \
-                     if lm.p_sim[i] >= 0.05])
-    for j in range(1,5): 
-        id_array.append([i for i,v in enumerate(lm.q) \
-                         if v == j and lm.p_sim[i] < 0.05])
-   
-    var_color_scheme = {'#fff':id_array[0],'darkred':id_array[1],'lightsalmon':id_array[2],'darkblue':id_array[3],'lightblue':id_array[4]}
-     
-    cartodb_show_map(vizjson, table_name, var_name, var_color_scheme)
+    
+    lisa = lm.q
+    
+    for i,v in enumerate(lm.p_sim):
+        if lm.p_sim[i] >= 0.05:
+            lisa[i] = 0
+    loc = os.path.realpath(__file__)    
+    loc = loc[0:loc.rindex('/')]
+    loc = loc[0:loc.rindex('/')] + "/www/tmp/"        
+    csv_loc = loc + "%s_lisa.csv" % var
+    csv = open(csv_loc, "w")
+    csv.write("cartodb_id, lisa\n")
+    for i,v in enumerate(lisa):
+        csv.write("%s,%s\n" % (i, v))
+    csv.close()
+  
+    zp_loc =  loc + "upload.zip"
+    zp = zipfile.ZipFile(zp_loc,"w")
+    zp.write(csv_loc)
+    zp.close()
+        
+    # custom HTTPS opener, banner's oracle 10g server supports SSLv3 only
+    import httplib, ssl, urllib2, socket
+    class HTTPSConnectionV3(httplib.HTTPSConnection):
+        def __init__(self, *args, **kwargs):
+            httplib.HTTPSConnection.__init__(self, *args, **kwargs)
+            
+        def connect(self):
+            sock = socket.create_connection((self.host, self.port), self.timeout)
+            if self._tunnel_host:
+                self.sock = sock
+                self._tunnel()
+            try:
+                self.sock = ssl.wrap_socket(sock, self.key_file, self.cert_file, ssl_version=ssl.PROTOCOL_SSLv3)
+            except ssl.SSLError, e:
+                print("Trying SSLv3.")
+                self.sock = ssl.wrap_socket(sock, self.key_file, self.cert_file, ssl_version=ssl.PROTOCOL_SSLv23)
+                
+    class HTTPSHandlerV3(urllib2.HTTPSHandler):
+        def https_open(self, req):
+            return self.do_open(HTTPSConnectionV3, req)
+    # install opener
+    urllib2.install_opener(urllib2.build_opener(HTTPSHandlerV3()))
+    
+    import requests
+    import_url = "https://%s.cartodb.com/api/v1/imports/?api_key=%s" % (CARTODB_DOMAIN, CARTODB_API_KEY)
+    r = requests.post(import_url, files={'file':open(zp_loc, 'rb')}, verify=False)
+    data = r.json()
+    
+    complete = False
+    last_state = ''
+    while not complete: 
+        import_status_url = "https://%s.cartodb.com/api/v1/imports/%s?api_key=%s" % (CARTODB_DOMAIN, data['item_queue_id'], CARTODB_API_KEY)
+        req = urllib2.Request(import_status_url)
+        response = urllib2.urlopen(req)
+        d = json.loads(str(response.read()))
+        if last_state!=d['state']:
+            last_state=d['state']
+            if d['state']=='uploading':
+                print 'Uploading file...'
+            elif d['state']=='importing':
+                print 'Importing data...'
+            elif d['state']=='complete':
+                complete = True
+                print 'Table "%s" created' % d['table_name']
+        if d['state']=='failure':
+            print d['get_error_text']['what_about']
+            
+    lisa_table = d['table_name']
+    lisa_color = ['#fff','darkred','lightsalmon','darkblue','lightblue']
+    cartocss = ""
+    for i in range(5):
+        cartocss += '#%s [lisa=0] {polygon-fill:%s;}' % (table_name, lisa_color[0])
+    cartosql = "select a.hr60, b.lisa, a.the_geom from %s as a, %s as b where a.cartodb_id=b.cartodb_id" % (table_name, lisa_table)
+    
+    cartodb_show_map(vizjson, table_name, var_name, cartosql, cartocss)
 
+def cartodb_upload(zf):
+    pass 
+    
 if __name__ == '__main__':
+    setup()
+    
     setup_cartodb("340808e9a453af9680684a65990eb4eb706e9b56","lixun910")
     
-    table_name="table_80f6b361d3143cee5a50ed3e27b07848"
+    table_name="nat"
 
-    vizjson = "http://lixun910.cartodb.com/api/v2/viz/104d7d20-36c5-11e4-957c-0e73339ffa50/viz.json"
+    vizjson = "http://lixun910.cartodb.com/api/v2/viz/69133934-3794-11e4-a1ae-0edbca4b5057/viz.json"
     
-    shp_path = cartodb_get_data(table_name,["the_geom"])
+    var_name = "hr60" 
+    shp_path = cartodb_get_data(table_name, [var_name])
     shp = pysal.open(shp_path)
     dbf = pysal.open(shp_path[:-3]+"dbf") 
     w = pysal.rook_from_shapefile(shp_path)
+    
     cartodb_lisa_map(shp, dbf, var_name, w, vizjson, table_name)
     
     cartodb_get_mapid()
     cartodb_create_map()    
     
-    shp2json(shp)
     
-    setup()
+    shp2json(shp)
     show_map(shp)
     #start_answermachine()
     test() 

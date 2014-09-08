@@ -19,6 +19,7 @@ html, body, #map {
 <script src="js/jquery.min.js"></script>
 <script>
 
+var map;
 $(document).ready(function() {
 
   //////////////////////////////////////////////////////////////
@@ -33,37 +34,60 @@ $(document).ready(function() {
       layerDict = window.opener.layerDict;
   //window.opener.tempMsg = undefined;
   
-  var map = new L.Map('map', {
-    zoomControl: false,
-    center: [43, 0],
-    zoom: 3
+  map = new L.Map('map', {
+    center: [43, -98],
+    zoom: 4
   });
 
-  L.tileLayer('http://tile.stamen.com/toner/{z}/{x}/{y}.png', {
-    attribution: 'Stamen'
+var mapconfig = {
+  "version": "1.0.1",
+  "layers": [{
+    "type": "cartodb",
+    "options": {
+      "cartocss_version": "2.1.1",
+      "cartocss": "#layer { polygon-fill: #FFF; }",
+      "sql": "select * from european_countries_e"
+    }
+  }]
+}
+
+$.ajax({
+  crossOrigin: true,
+  type: 'POST',
+  dataType: 'json',
+  contentType: 'application/json',
+  url: 'http://documentation.cartodb.com/api/v1/map',
+  data: JSON.stringify(mapconfig),
+  success: function(data) {
+    var templateUrl = 'http://documentation.cartodb.com/api/v1/map/' + data.layergroupid + '{z}/{x}/{y}.png'
+    console.log(templateUrl);
+  }
+})
+
+  L.tileLayer('https://dnv9my2eseobd.cloudfront.net/v3/cartodb.map-4xtxp73f/{z}/{x}/{y}.png', {
+        attribution: 'Mapbox <a href="http://mapbox.com/about/maps" target="_blank">Terms &amp; Feedback</a>'
   }).addTo(map);
 
-  cartodb.createLayer(map, vizjson, function(layer) {
-    // add customized layer
-    layer.createSubLayer({
-      'sql': 'SELECT * FROM ' + table_name,
-      'cartocss': cartocss
+  var layerUrl = vizjson;
+  
+  var subLayerOptions = {
+    query: "select nat.hr60, nat.the_geom, hr60_lisa.lisa from nat inner join hr60_lisa on nat.cartodb_id=hr60_lisa.cartodb_id",
+    //cartocss: cartocss
+    cartocss: "#nat [ lisa = '3' ] {polygon-fill:blue;} #hr60_lisa {polygon-fill:red;}"
+  };
+  
+  cartodb.createLayer(map, vizjson)
+    .addTo(map)
+    .on('done', function(layer) {
+      var sublayer = layer.getSubLayer(0);
+      sublayer.set(subLayerOptions);
+      sublayer.infowindow.set('template', $('#infowindow_template').html());
+      sublayer.on('featureClick', function(e, pos, latlng, data) {
+        alert("Hey! You clicked " + data.cartodb_id);
+      });
+    })
+    .on('error', function() {
     });
-  })
-  .addTo(map)
-  .on('done', function(layer) {
-    layer.setInteraction(true);
-
-    layer.on('featureOver', function(e, pos, latlng, data) {
-      cartodb.log.log(e, pos, latlng, data);
-    });
-
-    layer.on('error', function(err) {
-      cartodb.log.log('error: ' + err);
-    });
-  }).on('error', function() {
-    cartodb.log.log("some error occurred");
-  });
 });
 </script>
 </head>

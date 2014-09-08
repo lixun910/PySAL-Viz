@@ -136,6 +136,9 @@ $(document).ready(function() {
             break;
           case "pcp":
             break;
+          case "cartodb_mymap":
+            cartodb_mymap(msg);
+            break;
           default:
         };
       } catch (err) {
@@ -258,6 +261,14 @@ var scatter_plot_matrix = function(o) {
   //The newly creately scatter plot will be added to layerDict[uuid].plots.
 };
 
+var cartodb_mymap = function(msg) {
+  var w = window.open(
+    'cartodb_map.html', 
+    "_blank",
+    "width=600, height=500, scrollbars=yes"
+  );
+  //The newly creately scatter plot will be added to layerDict[uuid].plots.
+};
 /*
 The message for brushing/linking contains 1) layer uuid, 2) data.
 The data could be a list of highlighted object ids, e.g. [1,3,5,6,7..]
