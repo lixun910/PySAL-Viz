@@ -32,7 +32,34 @@
           attribution: 'Stamen'
         }).addTo(map);
 
-        cartodb.createLayer(map, 'http://documentation.cartodb.com/api/v2/viz/2b13c956-e7c1-11e2-806b-5404a6a683d5/viz.json')
+        var mapconfig = {
+  "version": "1.0.1",
+  "layers": [{
+    "type": "cartodb",
+    "options": {
+      "cartocss_version": "2.1.1",
+      "cartocss": "#layer { polygon-fill: #FFF; }",
+      "sql": "select * from table_80f6b361d3143cee5a50ed3e27b07848"
+    }
+  }]
+}
+
+$.ajax({
+  crossOrigin: true,
+  type: 'POST',
+  dataType: 'json',
+  contentType: 'application/json',
+  url: 'http://lixun910.cartodb.com/api/v1/map?api_key=340808e9a453af9680684a65990eb4eb706e9b56',
+  data: JSON.stringify(mapconfig),
+  success: function(data) {
+    var templateUrl = 'http://lixun910.cartodb.com/api/v1/map/' + data.layergroupid + '{z}/{x}/{y}.png'
+    console.log(templateUrl);
+  }
+})
+
+
+        var url = "http://lixun910.cartodb.com/api/v2/viz/b2ac20a4-36c4-11e4-a9bb-0e230854a1cb/viz.json";
+        cartodb.createLayer(map, url)
          .addTo(map)
          .on('done', function(layer) {
 

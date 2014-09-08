@@ -6,6 +6,7 @@ from uuid import uuid4
 from websocket import create_connection
 import shapefile
 import zipfile
+import urllib2, urllib
 
 __author__='Xun Li <xunli@asu.edu>'
 __all__=['clean_ports','setup','getuuid','shp2json','show_map','get_selected', 'select','quantile_map','lisa_map','scatter_plot_matrix']
@@ -560,7 +561,6 @@ def setup_cartodb(api_key, user):
     CARTODB_USER = user
 
 def cartodb_get_data(table_name, fields=[]):
-    import urllib2, urllib
     fields_str = '*'
     if len(fields) > 0:
         if "the_geom" not in fields:
@@ -568,7 +568,7 @@ def cartodb_get_data(table_name, fields=[]):
         fields_str = ",".join(fields)
     global CARTODB_API_KEY, CARTODB_DOMAIN
     sql = 'select %s from %s' % (fields_str, table_name)
-    url = 'https://%s.cartodb.com/api/v1/sql' % CARTODB_DOMAIN
+    url = 'https://%s.cartodb.com/api/v2/sql' % CARTODB_DOMAIN
     params = {
         'format': 'shp' ,
         'api_key': CARTODB_API_KEY,
@@ -594,10 +594,53 @@ def cartodb_get_data(table_name, fields=[]):
         if filename.startswith("cartodb-query"):
             os.rename(loc+filename, loc+table_name + filename[-4:])
     return loc + table_name + ".shp"
+
+def cartodb_get_mapid():
+    global CARTODB_API_KEY, CARTODB_DOMAIN
+    url = 'https://%s.cartodb.com/api/v1/map/named/mytest2' % CARTODB_DOMAIN
+    params = {
+        'api_key': CARTODB_API_KEY,
+    }
+    req = urllib2.Request(url, urllib.urlencode(params))
+    response = urllib2.urlopen(req)
+    content = response.read()    
+    
+def cartodb_create_map():
+    mapconfig = {
+        "version": "0.0.1",
+          "name": "mytest1",
+          "auth": {
+            "method": "open"
+          },
+          "layergroup": {
+            "layers": [{
+              "type": "cartodb",
+              "options": {
+                "cartocss_version": "2.1.1",
+                "cartocss": "#layer { polygon-fill: #FFF; }",
+                "sql": "select * from table_80f6b361d3143cee5a50ed3e27b07848"
+              }
+            }]
+          }        
+    }
+    url = 'https://%s.cartodb.com/api/v1/map/named?api_key=%s' % \
+        (CARTODB_DOMAIN, CARTODB_API_KEY)
+    
+    #opener = urllib2.build_opener()
+    #req = urllib2.Request(url, data=json.dumps(mapconfig),
+    #      headers={'Content-Type': 'application/json'})
+    response = urllib2.urlopen(url, json.dumps(mapconfig))
+    #response = opener.open(req)    
+    content = response.read()
     
 if __name__ == '__main__':
     setup_cartodb("340808e9a453af9680684a65990eb4eb706e9b56","lixun910")
+    
     table_name="table_80f6b361d3143cee5a50ed3e27b07848"
+
+    cartodb_get_mapid()
+    cartodb_create_map()    
+    
     shp_path = cartodb_get_data(table_name,["the_geom"])
     shp = pysal.open(shp_path)
     shp2json(shp)
