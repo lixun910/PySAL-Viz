@@ -1,84 +1,73 @@
+
+
 <!DOCTYPE html>
 <html>
-  <head>
-    <title>Leaflet example | CartoDB.js</title>
-    <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
-    <meta http-equiv="content-type" content="text/html; charset=UTF-8"/>
-    <link rel="shortcut icon" href="http://cartodb.com/assets/favicon.ico" />
-    <style>
-      html, body, #map {
-        height: 100%;
-        padding: 0;
-        margin: 0;
-      }
-    </style>
-    <link rel="stylesheet" href="http://libs.cartocdn.com/cartodb.js/v3/themes/css/cartodb.css" />
-  </head>
-  <body>
-    <div id="map"></div>
-    
-    <!-- include cartodb.js library -->
-    <script src="http://libs.cartocdn.com/cartodb.js/v3/cartodb.js"></script>
-
-    <script>
-      function main() {
-        var map = new L.Map('map', {
-          zoomControl: false,
-          center: [43, 0],
-          zoom: 3
-        });
-
-        L.tileLayer('http://tile.stamen.com/toner/{z}/{x}/{y}.png', {
-          attribution: 'Stamen'
-        }).addTo(map);
-
-        var mapconfig = {
-  "version": "1.0.1",
-  "layers": [{
-    "type": "cartodb",
-    "options": {
-      "cartocss_version": "2.1.1",
-      "cartocss": "#layer { polygon-fill: #FFF; }",
-      "sql": "select * from table_80f6b361d3143cee5a50ed3e27b07848"
-    }
-  }]
+<head>
+<title>Leaflet example | CartoDB.js</title>
+<meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+<meta http-equiv="content-type" content="text/html; charset=UTF-8"/>
+<link rel="shortcut icon" href="http://cartodb.com/assets/favicon.ico" />
+<style>
+html, body, #map {
+  height: 100%;
+  padding: 0;
+  margin: 0;
 }
+</style>
+<link rel="stylesheet" href="http://libs.cartocdn.com/cartodb.js/v3/themes/css/cartodb.css" />
+<script src="http://libs.cartocdn.com/cartodb.js/v3/cartodb.js"></script>
+<script src="js/jquery.min.js"></script>
+<script>
 
-$.ajax({
-  crossOrigin: true,
-  type: 'POST',
-  dataType: 'json',
-  contentType: 'application/json',
-  url: 'http://lixun910.cartodb.com/api/v1/map?api_key=340808e9a453af9680684a65990eb4eb706e9b56',
-  data: JSON.stringify(mapconfig),
-  success: function(data) {
-    var templateUrl = 'http://lixun910.cartodb.com/api/v1/map/' + data.layergroupid + '{z}/{x}/{y}.png'
-    console.log(templateUrl);
-  }
-})
+$(document).ready(function() {
 
+  //////////////////////////////////////////////////////////////
+  // Create Theme/Themeless Maps
+  //////////////////////////////////////////////////////////////
+  var msg = window.opener.tempMsg,
+      uuid = msg.uuid,
+      title = msg.title,
+      cartocss = msg.cartocss,
+      vizjson = msg.vizjson,
+      table_name = msg.table_name,
+      layerDict = window.opener.layerDict;
+  //window.opener.tempMsg = undefined;
+  
+  var map = new L.Map('map', {
+    zoomControl: false,
+    center: [43, 0],
+    zoom: 3
+  });
 
-        var url = "http://lixun910.cartodb.com/api/v2/viz/b2ac20a4-36c4-11e4-a9bb-0e230854a1cb/viz.json";
-        cartodb.createLayer(map, url)
-         .addTo(map)
-         .on('done', function(layer) {
+  L.tileLayer('http://tile.stamen.com/toner/{z}/{x}/{y}.png', {
+    attribution: 'Stamen'
+  }).addTo(map);
 
-          layer.setInteraction(true);
+  cartodb.createLayer(map, vizjson, function(layer) {
+    // add customized layer
+    layer.createSubLayer({
+      'sql': 'SELECT * FROM ' + table_name,
+      'cartocss': cartocss
+    });
+  })
+  .addTo(map)
+  .on('done', function(layer) {
+    layer.setInteraction(true);
 
-          layer.on('featureOver', function(e, pos, latlng, data) {
-            cartodb.log.log(e, pos, latlng, data);
-          });
+    layer.on('featureOver', function(e, pos, latlng, data) {
+      cartodb.log.log(e, pos, latlng, data);
+    });
 
-          layer.on('error', function(err) {
-            cartodb.log.log('error: ' + err);
-          });
-        }).on('error', function() {
-          cartodb.log.log("some error occurred");
-        });
-      }
-
-      // you could use $(window).load(main);
-      window.onload = main;
-    </script>
-  </body>
+    layer.on('error', function(err) {
+      cartodb.log.log('error: ' + err);
+    });
+  }).on('error', function() {
+    cartodb.log.log("some error occurred");
+  });
+});
+</script>
+</head>
+<body>
+<div id="map"></div>
+</body>
 </html>

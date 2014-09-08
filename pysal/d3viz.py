@@ -605,6 +605,47 @@ def cartodb_get_mapid():
     response = urllib2.urlopen(req)
     content = response.read()    
     
+def cartodb_show_map(vizjson, table_name, var_name, var_color_scheme):
+    """
+    color scheme of variable: {'#ffff':[1,3,4,5...],..}
+    """
+    cartocss = ""
+    def group_consecutives(vals, step=1):
+        """Return list of consecutive lists of numbers from vals (number list)."""
+        run = []
+        result = [run]
+        expect = None
+        for v in vals:
+            if (v == expect) or (expect is None):
+                run.append(v)
+            else:
+                run = [v]
+                result.append(run)
+            expect = v + step
+        return result    
+    for clr, ids in var_color_scheme.iteritems():
+        for id in ids:
+            cartocss += "#%s [%s=%s]," % (table_name, var_name, id)
+        cartocss += "{polygon-fill:%s}" % clr
+    
+    global SHP_DICT 
+    uuid = SHP_DICT[shp]
+    
+    global WS_SERVER 
+    ws = create_connection(WS_SERVER)
+    msg = {
+        "command": "cartodb_mymap",
+        "uuid":  uuid,
+        "title": "CartoDB map variables [%s]" % var_name,
+        "cartocss": cartocss,
+        "vizjson": vizjson,
+        "table_name": table_name
+    }
+    str_msg = json.dumps(msg)
+    ws.send(str_msg)
+    #print "send:", str_msg
+    ws.close()
+    
 def cartodb_create_map():
     mapconfig = {
         "version": "0.0.1",
@@ -633,16 +674,39 @@ def cartodb_create_map():
     #response = opener.open(req)    
     content = response.read()
     
+def cartodb_lisa_map(shp, dbf, var_name, w, vizjson, table_name):
+    
+    y = dbf.by_col[var]
+    lm = pysal.Moran_Local(np.array(y), w)
+     
+    bins = ["Not Significant","High-High","Low-High","Low-Low","Hight-Low"]
+    id_array = []
+    id_array.append([i for i,v in enumerate(lm.p_sim) \
+                     if lm.p_sim[i] >= 0.05])
+    for j in range(1,5): 
+        id_array.append([i for i,v in enumerate(lm.q) \
+                         if v == j and lm.p_sim[i] < 0.05])
+   
+    var_color_scheme = {'#fff':id_array[0],'darkred':id_array[1],'lightsalmon':id_array[2],'darkblue':id_array[3],'lightblue':id_array[4]}
+     
+    cartodb_show_map(vizjson, table_name, var_name, var_color_scheme)
+
 if __name__ == '__main__':
     setup_cartodb("340808e9a453af9680684a65990eb4eb706e9b56","lixun910")
     
     table_name="table_80f6b361d3143cee5a50ed3e27b07848"
 
-    cartodb_get_mapid()
-    cartodb_create_map()    
+    vizjson = "http://lixun910.cartodb.com/api/v2/viz/104d7d20-36c5-11e4-957c-0e73339ffa50/viz.json"
     
     shp_path = cartodb_get_data(table_name,["the_geom"])
     shp = pysal.open(shp_path)
+    dbf = pysal.open(shp_path[:-3]+"dbf") 
+    w = pysal.rook_from_shapefile(shp_path)
+    cartodb_lisa_map(shp, dbf, var_name, w, vizjson, table_name)
+    
+    cartodb_get_mapid()
+    cartodb_create_map()    
+    
     shp2json(shp)
     
     setup()
