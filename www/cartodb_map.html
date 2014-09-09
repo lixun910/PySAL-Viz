@@ -39,30 +39,6 @@ $(document).ready(function() {
     zoom: 4
   });
 
-var mapconfig = {
-  "version": "1.0.1",
-  "layers": [{
-    "type": "cartodb",
-    "options": {
-      "cartocss_version": "2.1.1",
-      "cartocss": "#layer { polygon-fill: #FFF; }",
-      "sql": "select * from european_countries_e"
-    }
-  }]
-}
-
-$.ajax({
-  crossOrigin: true,
-  type: 'POST',
-  dataType: 'json',
-  contentType: 'application/json',
-  url: 'http://documentation.cartodb.com/api/v1/map',
-  data: JSON.stringify(mapconfig),
-  success: function(data) {
-    var templateUrl = 'http://documentation.cartodb.com/api/v1/map/' + data.layergroupid + '{z}/{x}/{y}.png'
-    console.log(templateUrl);
-  }
-})
 
   L.tileLayer('https://dnv9my2eseobd.cloudfront.net/v3/cartodb.map-4xtxp73f/{z}/{x}/{y}.png', {
         attribution: 'Mapbox <a href="http://mapbox.com/about/maps" target="_blank">Terms &amp; Feedback</a>'
@@ -76,15 +52,19 @@ $.ajax({
     cartocss: "#nat [ lisa = '3' ] {polygon-fill:blue;} #hr60_lisa {polygon-fill:red;}"
   };
   
-  cartodb.createLayer(map, vizjson)
+
+  cartodb.createLayer(map, {
+          user_name: 'lixun910',
+          type: 'cartodb',
+          sublayers: [{
+             sql: 'select a.the_geom_webmercator,a.cartodb_id,b.lisa from nat as a, hr60_lisa as b where a.cartodb_id=b.cartodb_id',
+             cartocss: '#layer { polygon-fill: #F00; polygon-opacity: 0.3; line-color: #F00; } #layer[lisa="1"]{polygon-fill:blue;}',
+             interactivity: 'cartodb_id'
+          }]
+        })
     .addTo(map)
     .on('done', function(layer) {
-      var sublayer = layer.getSubLayer(0);
-      sublayer.set(subLayerOptions);
-      sublayer.infowindow.set('template', $('#infowindow_template').html());
-      sublayer.on('featureClick', function(e, pos, latlng, data) {
-        alert("Hey! You clicked " + data.cartodb_id);
-      });
+      cdb.vis.Vis.addInfowindow(map, layer.getSubLayer(0), ['lisa'])
     })
     .on('error', function() {
     });
