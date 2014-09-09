@@ -627,6 +627,33 @@ def cartodb_show_map(vizjson, table_name, var_name, cartosql, cartocss):
     #print "send:", str_msg
     ws.close()
     
+def cartodb_show_maps(table_names, geom_types, cartocsses=None, cartosqls=None):
+    default_cartocss = {}
+    default_cartocss['poly'] = '#layer { polygon-fill: #F00; polygon-opacity: 0.3; line-color: #F00; }'
+    default_cartocss['point'] = '#layer { marker-fill: #FF6600; marker-opacity: 1; marker-width: 8; marker-line-color: white; marker-line-width: 3; marker-line-opacity: 0.9; marker-placement: point; marker-type: ellipse; marker-allow-overlap: true;}'
+    
+    sublayers = []
+    # show default cartodb maps. Select * from table
+    for i, tbl in enumerate(table_names):
+        sublayer = {}
+        sublayer['sql'] = cartosqls[i] if cartosqls else 'select * from %s' % tbl 
+        sublayer['cartocss'] = cartocsses[i] if cartocsses else\
+            default_cartocss[geom_types[i]]
+        sublayer["interactivity"]= "cartodb_id"
+        sublayers.append(sublayer)
+   
+    global WS_SERVER 
+    ws = create_connection(WS_SERVER)
+    msg = {
+        "command": "cartodb_mymap",
+        "title": "CartoDB map variables [%s]" % var_name,
+        "sublayers": json.dumps(sublayers),
+    }
+    str_msg = json.dumps(msg)
+    ws.send(str_msg)
+    #print "send:", str_msg
+    ws.close()
+ 
 def cartodb_create_map():
     mapconfig = {
         "version": "0.0.1",
@@ -741,28 +768,72 @@ def cartodb_lisa_map(shp, dbf, var, w, vizjson, table_name):
 def cartodb_upload(zf):
     pass 
     
+    
+def cartodb_count_pts_in_polys(poly_tbl, pt_tbl, count_col_name):
+    # add new column
+    
+    sql = 'ALTER TABLE %s ADD COLUMN %s integer' % (poly_tbl, count_col_name)
+    url = 'https://%s.cartodb.com/api/v1/sql' % CARTODB_DOMAIN
+    params = {
+        'api_key': CARTODB_API_KEY,
+        'q': sql,
+    }
+    req = urllib2.Request(url, urllib.urlencode(params))
+    response = urllib2.urlopen(req)
+    content = response.read()
+    # call sql api to update
+    """
+    UPDATE polygon_table SET point_count = (SELECT count(*)
+    FROM points_table WHERE ST_Intersects(points_table.the_geom, polygon_table.the_geom))    
+    """
+    sql = 'UPDATE %s SET %s = (SELECT count(*) FROM %s WHERE ST_Intersects(%s.the_geom, %s.the_geom))' % (poly_tbl, count_col_name, pt_tbl, pt_tbl, poly_tbl)
+    url = 'https://%s.cartodb.com/api/v1/sql' % CARTODB_DOMAIN
+    params = {
+        'api_key': CARTODB_API_KEY,
+        'q': sql,
+    }
+    req = urllib2.Request(url, urllib.urlencode(params))
+    response = urllib2.urlopen(req)
+    content = response.read()
+    
+    pass
+
 if __name__ == '__main__':
     setup()
     
     setup_cartodb("340808e9a453af9680684a65990eb4eb706e9b56","lixun910")
     
-    table_name="nat"
-
-    vizjson = "http://lixun910.cartodb.com/api/v2/viz/69133934-3794-11e4-a1ae-0edbca4b5057/viz.json"
+    poly_tbl ="sfpd_plots"
+    point_tbl = "sf_cartheft"
+    var_name = "mycnt" 
+    #upload polygon shapefile
+    #upload point shapefile
+    # show polygon + point map in CartoDB.js 
+    cartodb_show_maps([poly_tbl, point_tbl],['poly','point']) 
     
-    var_name = "hr60" 
-    shp_path = cartodb_get_data(table_name, [var_name])
+    #counting points in polygon
+    cartodb_count_pts_in_polys("sfpd_plots","sf_cartheft","mycnt")
+    
+    # download data for LISA 
+    shp_path = cartodb_get_data(poly_tbl, [var_name])
+     
+    # running LISA
     shp = pysal.open(shp_path)
     dbf = pysal.open(shp_path[:-3]+"dbf") 
     w = pysal.rook_from_shapefile(shp_path)
+  
+       
+    # show LISA map in CartoDB.js
+    # show LISA map + point intensity map in CartoDB.js
     
-    cartodb_lisa_map(shp, dbf, var_name, w, vizjson, table_name)
+    dbf = pysal.open(shp_path[:-3]+"dbf") 
+    w = pysal.rook_from_shapefile(shp_path)
     
-    cartodb_get_mapid()
-    cartodb_create_map()    
+    #cartodb_lisa_map(shp, dbf, var_name, w, vizjson, table_name)
+    
+    #cartodb_get_mapid()
+    #cartodb_create_map()    
     
     
-    shp2json(shp)
-    show_map(shp)
+    #show_map(shp)
     #start_answermachine()
-    test() 

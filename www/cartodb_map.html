@@ -26,11 +26,9 @@ $(document).ready(function() {
   // Create Theme/Themeless Maps
   //////////////////////////////////////////////////////////////
   var msg = window.opener.tempMsg,
-      uuid = msg.uuid,
+      //uuid = msg.uuid,
       title = msg.title,
-      cartocss = msg.cartocss,
-      vizjson = msg.vizjson,
-      table_name = msg.table_name,
+      sublayers = JSON.parse(msg.sublayers),
       layerDict = window.opener.layerDict;
   //window.opener.tempMsg = undefined;
   
@@ -39,32 +37,23 @@ $(document).ready(function() {
     zoom: 4
   });
 
-
-  L.tileLayer('https://dnv9my2eseobd.cloudfront.net/v3/cartodb.map-4xtxp73f/{z}/{x}/{y}.png', {
+  L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
         attribution: 'Mapbox <a href="http://mapbox.com/about/maps" target="_blank">Terms &amp; Feedback</a>'
   }).addTo(map);
-
-  var layerUrl = vizjson;
-  
-  var subLayerOptions = {
-    query: "select nat.hr60, nat.the_geom, hr60_lisa.lisa from nat inner join hr60_lisa on nat.cartodb_id=hr60_lisa.cartodb_id",
-    //cartocss: cartocss
-    cartocss: "#nat [ lisa = '3' ] {polygon-fill:blue;} #hr60_lisa {polygon-fill:red;}"
-  };
-  
 
   cartodb.createLayer(map, {
           user_name: 'lixun910',
           type: 'cartodb',
-          sublayers: [{
+          /*sublayers: [{
              sql: 'select a.the_geom_webmercator,a.cartodb_id,b.lisa from nat as a, hr60_lisa as b where a.cartodb_id=b.cartodb_id',
              cartocss: '#layer { polygon-fill: #F00; polygon-opacity: 0.3; line-color: #F00; } #layer[lisa="1"]{polygon-fill:blue;}',
              interactivity: 'cartodb_id'
-          }]
+          }]*/
+          sublayers: sublayers
         })
     .addTo(map)
     .on('done', function(layer) {
-      cdb.vis.Vis.addInfowindow(map, layer.getSubLayer(0), ['lisa'])
+      //cdb.vis.Vis.addInfowindow(map, layer.getSubLayer(0), ['lisa'])
     })
     .on('error', function() {
     });
