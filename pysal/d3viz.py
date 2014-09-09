@@ -605,40 +605,19 @@ def cartodb_get_mapid():
     response = urllib2.urlopen(req)
     content = response.read()    
     
-def cartodb_show_map(vizjson, table_name, var_name, cartosql, cartocss):
-    global SHP_DICT 
-    if shp not in SHP_DICT:
-        SHP_DICT[shp] = getuuid(shp)
-    uuid = SHP_DICT[shp]
-    
-    global WS_SERVER 
-    ws = create_connection(WS_SERVER)
-    msg = {
-        "command": "cartodb_mymap",
-        "uuid":  uuid,
-        "title": "CartoDB map variables [%s]" % var_name,
-        "cartosql": cartosql,
-        "cartocss": cartocss,
-        "vizjson": vizjson,
-        "table_name": table_name
-    }
-    str_msg = json.dumps(msg)
-    ws.send(str_msg)
-    #print "send:", str_msg
-    ws.close()
-    
 def cartodb_show_maps(table_names, geom_types, cartocsses=None, cartosqls=None):
     default_cartocss = {}
-    default_cartocss['poly'] = '#layer { polygon-fill: #F00; polygon-opacity: 0.3; line-color: #F00; }'
-    default_cartocss['point'] = '#layer { marker-fill: #FF6600; marker-opacity: 1; marker-width: 8; marker-line-color: white; marker-line-width: 3; marker-line-opacity: 0.9; marker-placement: point; marker-type: ellipse; marker-allow-overlap: true;}'
+    default_cartocss['poly'] = '#layer { polygon-fill: blue; polygon-opacity: 0.6; line-color: #CCC; }'
+    default_cartocss['point'] = '#layer { marker-fill: #FF6600; marker-opacity: 1; marker-width: 6; marker-line-color: white; marker-line-width: 1; marker-line-opacity: 0.9; marker-placement: point; marker-type: ellipse; marker-allow-overlap: true;}'
     
     sublayers = []
     # show default cartodb maps. Select * from table
     for i, tbl in enumerate(table_names):
         sublayer = {}
-        sublayer['sql'] = cartosqls[i] if cartosqls else 'select * from %s' % tbl 
-        sublayer['cartocss'] = cartocsses[i] if cartocsses else\
-            default_cartocss[geom_types[i]]
+        sublayer['sql'] = cartosqls[i] if cartosqls and cartosqls[i]\
+            else 'select * from %s' % tbl 
+        sublayer['cartocss'] = cartocsses[i] if cartocsses and cartocsses[i]\
+            else default_cartocss[geom_types[i]]
         sublayer["interactivity"]= "cartodb_id"
         sublayers.append(sublayer)
    
@@ -682,13 +661,10 @@ def cartodb_create_map():
     #response = opener.open(req)    
     content = response.read()
     
-def cartodb_lisa_map(shp, dbf, var, w, vizjson, table_name):
+def cartodb_lisa_map(shp, dbf, var, w, poly_table, lisa_table_name):
     import StringIO
     y = dbf.by_col[var]
     lm = pysal.Moran_Local(np.array(y), w)
-     
-    bins = ["Not Significant","High-High","Low-High","Low-Low","Hight-Low"]
-    
     lisa = lm.q
     
     for i,v in enumerate(lm.p_sim):
@@ -697,7 +673,7 @@ def cartodb_lisa_map(shp, dbf, var, w, vizjson, table_name):
     loc = os.path.realpath(__file__)    
     loc = loc[0:loc.rindex('/')]
     loc = loc[0:loc.rindex('/')] + "/www/tmp/"        
-    csv_loc = loc + "%s_lisa.csv" % var
+    csv_loc = loc + lisa_table_name + ".csv" 
     csv = open(csv_loc, "w")
     csv.write("cartodb_id, lisa\n")
     for i,v in enumerate(lisa):
@@ -708,30 +684,7 @@ def cartodb_lisa_map(shp, dbf, var, w, vizjson, table_name):
     zp = zipfile.ZipFile(zp_loc,"w")
     zp.write(csv_loc)
     zp.close()
-        
-    # custom HTTPS opener, banner's oracle 10g server supports SSLv3 only
-    import httplib, ssl, urllib2, socket
-    class HTTPSConnectionV3(httplib.HTTPSConnection):
-        def __init__(self, *args, **kwargs):
-            httplib.HTTPSConnection.__init__(self, *args, **kwargs)
-            
-        def connect(self):
-            sock = socket.create_connection((self.host, self.port), self.timeout)
-            if self._tunnel_host:
-                self.sock = sock
-                self._tunnel()
-            try:
-                self.sock = ssl.wrap_socket(sock, self.key_file, self.cert_file, ssl_version=ssl.PROTOCOL_SSLv3)
-            except ssl.SSLError, e:
-                print("Trying SSLv3.")
-                self.sock = ssl.wrap_socket(sock, self.key_file, self.cert_file, ssl_version=ssl.PROTOCOL_SSLv23)
-                
-    class HTTPSHandlerV3(urllib2.HTTPSHandler):
-        def https_open(self, req):
-            return self.do_open(HTTPSConnectionV3, req)
-    # install opener
-    urllib2.install_opener(urllib2.build_opener(HTTPSHandlerV3()))
-    
+
     import requests
     import_url = "https://%s.cartodb.com/api/v1/imports/?api_key=%s" % (CARTODB_DOMAIN, CARTODB_API_KEY)
     r = requests.post(import_url, files={'file':open(zp_loc, 'rb')}, verify=False)
@@ -757,13 +710,25 @@ def cartodb_lisa_map(shp, dbf, var, w, vizjson, table_name):
             print d['get_error_text']['what_about']
             
     lisa_table = d['table_name']
-    lisa_color = ['#fff','darkred','lightsalmon','darkblue','lightblue']
-    cartocss = ""
-    for i in range(5):
-        cartocss += '#%s [lisa=0] {polygon-fill:%s;}' % (table_name, lisa_color[0])
-    cartosql = "select a.hr60, b.lisa, a.the_geom from %s as a, %s as b where a.cartodb_id=b.cartodb_id" % (table_name, lisa_table)
+    cartodb_show_lisa_map(poly_table, lisa_table)
     
-    cartodb_show_map(vizjson, table_name, var_name, cartosql, cartocss)
+def cartodb_show_lisa_map(poly_table, lisa_table, show_points=False):
+    lisa_color = ['#fff','darkred','lightsalmon','darkblue','lightblue']
+    lisa_sql = 'select a.the_geom_webmercator,a.cartodb_id,b.lisa from %s as a, %s as b where a.cartodb_id=b.cartodb_id' % (poly_table, lisa_table)
+    lisa_css= '#layer { polygon-fill: #FFF; polygon-opacity: 0.5; line-color: #CCC; } #layer[lisa="1"]{polygon-fill: red;} #layer[lisa="2"]{polygon-fill: lightsalmon;} #layer[lisa="3"]{polygon-fill: blue;} #layer[lisa="4"]{polygon-fill: lightblue;}'
+ 
+    point_css = '#layer {first/marker-fill: #0011cc; first/marker-opacity: 0.01; first/marker-width: 20; first/marker-line-width: 0; first/marker-placement: point; first/marker-allow-overlap: true; first/marker-comp-op: lighten; second/marker-fill: #00cc11; second/marker-opacity: 0.02; second/marker-width:10; second/marker-line-width: 0; second/marker-placement: point; second/marker-allow-overlap: true; second/marker-comp-op: lighten ; third/marker-fill: #00ff00; third/marker-opacity: 0.04; third/marker-width:5; third/marker-line-width: 0; third/marker-placement: point; third/marker-allow-overlap: true; third/marker-comp-op: lighten;}' 
+    
+    point_css = '#layer {first/marker-fill: #0011cc; first/marker-opacity: 0.02; first/marker-width: 60; first/marker-line-width: 0; first/marker-placement: point; first/marker-allow-overlap: true; first/marker-comp-op: lighten; second/marker-fill: #00cc11; second/marker-opacity: 0.05; second/marker-width:50; second/marker-line-width: 0; second/marker-placement: point; second/marker-allow-overlap: true; second/marker-comp-op: lighten ; third/marker-fill: #00ff00; third/marker-opacity: 0.1; third/marker-width:20; third/marker-line-width: 0; third/marker-placement: point; third/marker-allow-overlap: true; third/marker-comp-op: lighten;}' 
+    
+    cartocsses = [lisa_css, point_css] if show_points else [lisa_css]
+    cartosqls = [lisa_sql,None] if show_points else [lisa_sql]
+    if show_points:
+        cartodb_show_maps([lisa_table,point_tbl],['poly', 'point'], cartocsses, cartosqls) 
+    else:
+        cartodb_show_maps([lisa_table],['poly'], cartocsses, cartosqls) 
+        
+    
 
 def cartodb_upload(zf):
     pass 
@@ -809,10 +774,13 @@ if __name__ == '__main__':
     #upload polygon shapefile
     #upload point shapefile
     # show polygon + point map in CartoDB.js 
-    cartodb_show_maps([poly_tbl, point_tbl],['poly','point']) 
+    #cartodb_show_maps([poly_tbl, point_tbl],['poly','point']) 
+    
+    point_css = '#layer {first/marker-fill: #0011cc; first/marker-opacity: 0.02; first/marker-width: 60; first/marker-line-width: 0; first/marker-placement: point; first/marker-allow-overlap: true; first/marker-comp-op: lighten; second/marker-fill: #00cc11; second/marker-opacity: 0.05; second/marker-width:50; second/marker-line-width: 0; second/marker-placement: point; second/marker-allow-overlap: true; second/marker-comp-op: lighten ; third/marker-fill: #00ff00; third/marker-opacity: 0.1; third/marker-width:20; third/marker-line-width: 0; third/marker-placement: point; third/marker-allow-overlap: true; third/marker-comp-op: lighten;}' 
+    cartodb_show_maps([point_tbl,point_tbl],['point','poly'], [point_css,None]) 
     
     #counting points in polygon
-    cartodb_count_pts_in_polys("sfpd_plots","sf_cartheft","mycnt")
+    #cartodb_count_pts_in_polys("sfpd_plots","sf_cartheft","mycnt")
     
     # download data for LISA 
     shp_path = cartodb_get_data(poly_tbl, [var_name])
@@ -821,15 +789,14 @@ if __name__ == '__main__':
     shp = pysal.open(shp_path)
     dbf = pysal.open(shp_path[:-3]+"dbf") 
     w = pysal.rook_from_shapefile(shp_path)
-  
+    new_lisa_table_name = "cartheft_lisa" 
+    #cartodb_lisa_map(shp, dbf, var_name, w, poly_tbl, new_lisa_table_name)
+    cartodb_show_lisa_map(poly_tbl, new_lisa_table_name, show_points=False)
+    cartodb_show_lisa_map(poly_tbl, new_lisa_table_name, show_points=True)
        
     # show LISA map in CartoDB.js
     # show LISA map + point intensity map in CartoDB.js
     
-    dbf = pysal.open(shp_path[:-3]+"dbf") 
-    w = pysal.rook_from_shapefile(shp_path)
-    
-    #cartodb_lisa_map(shp, dbf, var_name, w, vizjson, table_name)
     
     #cartodb_get_mapid()
     #cartodb_create_map()    
