@@ -16,6 +16,9 @@ WS_SERVER = "ws://localhost:9000"
 SHP_DICT = {}
 R_SHP_DICT = {}
 
+
+CARTO_CSS_POINT = '#layer {first/marker-fill: #0011cc; first/marker-opacity: 0.02; first/marker-width: 60; first/marker-line-width: 0; first/marker-placement: point; first/marker-allow-overlap: true; first/marker-comp-op: lighten; second/marker-fill: #00cc11; second/marker-opacity: 0.05; second/marker-width:50; second/marker-line-width: 0; second/marker-placement: point; second/marker-allow-overlap: true; second/marker-comp-op: lighten ; third/marker-fill: #00ff00; third/marker-opacity: 0.1; third/marker-width:20; third/marker-line-width: 0; third/marker-placement: point; third/marker-allow-overlap: true; third/marker-comp-op: lighten;}' 
+    
 class AnswerMachine(threading.Thread):
     """
     Handle commands sent from Web Pages
@@ -625,7 +628,6 @@ def cartodb_show_maps(table_names, geom_types, cartocsses=None, cartosqls=None):
     ws = create_connection(WS_SERVER)
     msg = {
         "command": "cartodb_mymap",
-        "title": "CartoDB map variables [%s]" % var_name,
         "sublayers": json.dumps(sublayers),
     }
     str_msg = json.dumps(msg)
@@ -712,18 +714,15 @@ def cartodb_lisa_map(shp, dbf, var, w, poly_table, lisa_table_name):
     lisa_table = d['table_name']
     cartodb_show_lisa_map(poly_table, lisa_table)
     
-def cartodb_show_lisa_map(poly_table, lisa_table, show_points=False):
+def cartodb_show_lisa_map(poly_table, lisa_table, point_tbl=None, show_points=False):
     lisa_color = ['#fff','darkred','lightsalmon','darkblue','lightblue']
     lisa_sql = 'select a.the_geom_webmercator,a.cartodb_id,b.lisa from %s as a, %s as b where a.cartodb_id=b.cartodb_id' % (poly_table, lisa_table)
     lisa_css= '#layer { polygon-fill: #FFF; polygon-opacity: 0.5; line-color: #CCC; } #layer[lisa="1"]{polygon-fill: red;} #layer[lisa="2"]{polygon-fill: lightsalmon;} #layer[lisa="3"]{polygon-fill: blue;} #layer[lisa="4"]{polygon-fill: lightblue;}'
  
-    point_css = '#layer {first/marker-fill: #0011cc; first/marker-opacity: 0.01; first/marker-width: 20; first/marker-line-width: 0; first/marker-placement: point; first/marker-allow-overlap: true; first/marker-comp-op: lighten; second/marker-fill: #00cc11; second/marker-opacity: 0.02; second/marker-width:10; second/marker-line-width: 0; second/marker-placement: point; second/marker-allow-overlap: true; second/marker-comp-op: lighten ; third/marker-fill: #00ff00; third/marker-opacity: 0.04; third/marker-width:5; third/marker-line-width: 0; third/marker-placement: point; third/marker-allow-overlap: true; third/marker-comp-op: lighten;}' 
     
-    point_css = '#layer {first/marker-fill: #0011cc; first/marker-opacity: 0.02; first/marker-width: 60; first/marker-line-width: 0; first/marker-placement: point; first/marker-allow-overlap: true; first/marker-comp-op: lighten; second/marker-fill: #00cc11; second/marker-opacity: 0.05; second/marker-width:50; second/marker-line-width: 0; second/marker-placement: point; second/marker-allow-overlap: true; second/marker-comp-op: lighten ; third/marker-fill: #00ff00; third/marker-opacity: 0.1; third/marker-width:20; third/marker-line-width: 0; third/marker-placement: point; third/marker-allow-overlap: true; third/marker-comp-op: lighten;}' 
-    
-    cartocsses = [lisa_css, point_css] if show_points else [lisa_css]
-    cartosqls = [lisa_sql,None] if show_points else [lisa_sql]
-    if show_points:
+    cartocsses = [lisa_css, CARTO_CSS_POINT] if point_tbl else [lisa_css]
+    cartosqls = [lisa_sql,None] if point_tbl else [lisa_sql]
+    if point_tbl:
         cartodb_show_maps([lisa_table,point_tbl],['poly', 'point'], cartocsses, cartosqls) 
     else:
         cartodb_show_maps([lisa_table],['poly'], cartocsses, cartosqls) 
@@ -776,8 +775,7 @@ if __name__ == '__main__':
     # show polygon + point map in CartoDB.js 
     #cartodb_show_maps([poly_tbl, point_tbl],['poly','point']) 
     
-    point_css = '#layer {first/marker-fill: #0011cc; first/marker-opacity: 0.02; first/marker-width: 60; first/marker-line-width: 0; first/marker-placement: point; first/marker-allow-overlap: true; first/marker-comp-op: lighten; second/marker-fill: #00cc11; second/marker-opacity: 0.05; second/marker-width:50; second/marker-line-width: 0; second/marker-placement: point; second/marker-allow-overlap: true; second/marker-comp-op: lighten ; third/marker-fill: #00ff00; third/marker-opacity: 0.1; third/marker-width:20; third/marker-line-width: 0; third/marker-placement: point; third/marker-allow-overlap: true; third/marker-comp-op: lighten;}' 
-    cartodb_show_maps([point_tbl,point_tbl],['point','poly'], [point_css,None]) 
+    cartodb_show_maps([point_tbl,point_tbl],['point','poly'], [CARTO_CSS_POINT,None]) 
     
     #counting points in polygon
     #cartodb_count_pts_in_polys("sfpd_plots","sf_cartheft","mycnt")
