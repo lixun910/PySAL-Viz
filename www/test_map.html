@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>GeoDa.app</title>
+<style>
+body {
+  text-align: center;
+  font-family: "Trebuchet MS", "Helvetica", "Arial",  "Verdana", "sans-serif";
+  font-size: 82.5%;
+}
+</style>
+<script src="js/jquery.min.js"></script>
+<script src="js/d3.v3.min.js"></script>
+<script src="js/colorbrewer.js"></script>
+<script src="js/geoviz.js"></script>
+<script src="js/utils.js"></script>
+<script>
+
+var map, bins, colors;
+
+$(document).ready(function() {
+  //////////////////////////////////////////////////////////////
+  // Local Storage Brushing/Linking
+  //////////////////////////////////////////////////////////////
+  localStorage.clear();
+  $(window).bind('storage', function(e) {
+    var uuid = localStorage.getItem('HL_LAYER');
+    
+    if ( uuid in window.opener.layerDict ) {
+      var select_ids = localStorage.getItem('HL_IDS').split(",");
+      for ( var i=0; i<select_ids.length; i++ ) {
+        select_ids[i] = parseInt(select_ids[i]);
+      }
+      var layer = window.opener.layerDict[uuid];
+      layer.basemap.highlight(select_ids, "nolinking");
+      for (var i=0, n=layer.maps.length; i< n; i++) {
+        layer.maps[i].highlight(select_ids, "nolinking");
+      }
+      for (var i=0, n=layer.plots.length; i< n; i++) {
+        layer.plots[i].highlight(select_ids, "nolinking");
+      }
+    }
+  });
+  //////////////////////////////////////////////////////////////
+  // Test Map
+  //////////////////////////////////////////////////////////////
+  var canvas = $('<canvas id="test" width="1000" height="1000"></canvas>')
+    .appendTo($('#map-container'));
+    
+  d3.json("seg_road_G.geojson", function(error, json) {
+    map = new GeoVizMap(json, canvas); 
+  });
+  
+});
+</script>
+<body>
+<div id="map-container" style="width:1000;height:1000">
+</div>
+</body>
+</html>

@@ -175,8 +175,49 @@ GeoVizMap.prototype = {
         if (x < minX) {minX = x;}
         if (y > maxY) {maxY = y;}
         if (y < minY) {minY = y;}
+        that.bbox.push([x, x, y, y]);
+        that.centroids.push([x, y]);
+      });
+    } else if ( this.shpType == "LineString" || this.shpType == "Line" ) {
+      this.geojson.features.forEach(function(feat,i) {
+        var bminX = Number.POSITIVE_INFINITY,
+            bmaxX = Number.NEGATIVE_INFINITY,
+            bminY = Number.POSITIVE_INFINITY,
+            bmaxY = Number.NEGATIVE_INFINITY;
+        var l = feat.geometry.coordinates;
+        if (l[0][0] instanceof Array) {
+          // multi-lines
+          for (var i=0, n=l.length; i < n; i++) {
+            var sl = l[i];
+            for (var j=0, m=sl.length; j < m; j++) {
+              var x = sl[j][0],
+                  y = sl[j][1];
+              if (x > maxX) {maxX = x;}
+              if (x < minX) {minX = x;}
+              if (y > maxY) {maxY = y;}
+              if (y < minY) {minY = y;}
+              if (x > bmaxX) {bmaxX = x;}
+              if (x < bminX) {bminX = x;}
+              if (y > bmaxY) {bmaxY = y;}
+              if (y < bminY) {bminY = y;}
+            }
+          }
+        } else {
+          for (var j=0, m=l.length; j < m; j++) {
+            var x = l[j][0],
+                y = l[j][1];
+            if (x > maxX) {maxX = x;}
+            if (x < minX) {minX = x;}
+            if (y > maxY) {maxY = y;}
+            if (y < minY) {minY = y;}
+            if (x > bmaxX) {bmaxX = x;}
+            if (x < bminX) {bminX = x;}
+            if (y > bmaxY) {bmaxY = y;}
+            if (y < bminY) {bminY = y;}
+          }
+        }
         that.bbox.push([bminX, bmaxX, bminY, bmaxY]);
-        that.centroids.push([bminX, bminY]);
+        that.centroids.push([bminX + ((bmaxX - bminX)/2.0), bminY + ((bmaxY - bminY)/2.0)]);
       });
     }
     return [minX, maxX, minY, maxY];
@@ -199,11 +240,14 @@ GeoVizMap.prototype = {
     context.lineWidth = 1;
     context.strokeStyle = "#00ffff";
     context.fillStyle = _self.HLT_CLR;
+    
     ids.forEach( function( id) {
       if (_self.shpType == "Polygon" || _self.shpType == "MultiPolygon") {
         _self.drawPolygon( context, _self.geojson.features[id] );
       } else if (_self.shpType == "Point" || _self.shpType == "MultiPoint") {
         _self.drawPoint( context, _self.geojson.features[id] );
+      } else if (_self.shpType == "LineString" || _self.shpType == "Line") {
+        _self.drawLine( context, _self.geojson.features[id] );
       }
     });
     if (nolinking == undefined) {
@@ -236,6 +280,36 @@ GeoVizMap.prototype = {
     }
   },
   
+  drawLine: function( ctx, ln, stk_clr, fill_clr ) {
+    var line = ln.geometry.coordinates;
+    var lines = [];
+    if (line[0][0] instanceof Array) {
+      // multi-lines
+      for (var i=0,n=line.length; i < n; i++) {
+        lines.push(line[i]);
+      }
+    }  else {
+      lines.push(line);
+    }
+    for (var i=0, n=lines.length; i < n; i++) {
+      var l = lines[i],
+          x = l[0][0],
+          y = l[0][1];
+      x = _self.scaleX(x)+ _self.offsetX;
+      y = _self.scaleY(y)+ _self.offsetY;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      for (var j=1, m=l.length; j < m; j++) {
+        x = l[j][0],
+        y = l[j][1],
+        x = _self.scaleX(x)+ _self.offsetX;
+        y = _self.scaleY(y)+ _self.offsetY;
+        ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+  },
+  
   drawPoint: function( ctx, pt, stk_clr, fill_clr) {
     var xy = pt.geometry.coordinates,
         x = xy[0],
@@ -260,6 +334,10 @@ GeoVizMap.prototype = {
         this.geojson.features.forEach( function(feat,i) {
           that.drawPoint( context, feat, that.STROKE_CLR, that.FILL_CLR );
         });
+      } else if (this.shpType == "Line" || this.shpType == "LineString") {
+        this.geojson.features.forEach( function(feat,i) {
+          that.drawLine( context, feat, that.STROKE_CLR, that.FILL_CLR );
+        });
       }
     } else {
       var that = this;
@@ -272,6 +350,8 @@ GeoVizMap.prototype = {
             that.drawPolygon(context, feat, that.STROKE_CLR, color);
           } else if (this.shpType == "Point" || this.shpType == "MultiPoint") {
             that.drawPoint( context, feat, that.STROKE_CLR, color);
+          } else if (this.shpType == "Line" || this.shpType == "LineString") {
+            that.drawLine( context, feat, that.STROKE_CLR, color);
           }
         }
       }
@@ -342,6 +422,7 @@ GeoVizMap.prototype = {
       } else {
         pt1 = _self.screenToMap(x,y);
       } 
+      
       if ( x == _self.startX && y == _self.startY ) {
       } else {
         var minPX = Math.min( pt0[0], pt1[0]),
@@ -366,6 +447,7 @@ GeoVizMap.prototype = {
       } else {
         var w = x - startX, 
             h = y - startY;
+        console.log(startX, startY, w, h);
         context.rect( startX, startY, w, h);
       }
       context.strokeStyle = _self.HLT_BRD_CLR;
