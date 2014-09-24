@@ -374,7 +374,8 @@ GeoVizMap.prototype = {
     }
   },
   OnMouseDown: function( evt ) {
-    var x = evt.pageX, y = evt.pageY;
+    //var x = evt.pageX, y = evt.pageY;
+    var x = evt.offsetX, y = evt.offsetY;
     _self.isMouseDown = true;
     _self.startX = x;
     _self.startY = y;
@@ -397,9 +398,8 @@ GeoVizMap.prototype = {
     }
   },
   OnMouseMove: function(evt) {
-    var x = evt.pageX, 
-        y = evt.pageY,
-        startX, 
+    var x = evt.offsetX, y = evt.offsetY;
+    var startX, 
         startY;
         
     if ( _self.isMouseDown == true ) {
@@ -457,7 +457,8 @@ GeoVizMap.prototype = {
     }
   },
   OnMouseUp: function(evt) {
-    var x = evt.pageX, y = evt.pageY;
+    //var x = evt.pageX, y = evt.pageY;
+    var x = evt.offsetX, y = evt.offsetY;
     if ( _self.isMouseDown == true) {
       if ( _self.startX == x && _self.startY == y ) {
         // point select
