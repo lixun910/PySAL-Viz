@@ -1,5 +1,4 @@
 // Author: xunli at asu.edu
-(function(window,undefined){
   var GPoint = function( x, y ) {
     this.x = x;
     this.y = y;
@@ -25,6 +24,129 @@
     },
     GetH: function() {
       return this.y1 - this.y0;
+    },
+  };
+  
+  var ShpMap = function(shpFile ) {
+  };
+
+  /**
+   * extent: if show this map on google map which has predefined extent
+   */
+  var JsonMap = function(geoJson, extent) {
+    this.geojson = geoJson;
+    this.shpType = this.geojson.features[0].geometry.type;
+    this.bbox = [];
+    this.extent = extent==undefined ? this.getExtent() : extent;
+    this.mapLeft = this.extent[0];
+    this.mapRight = this.extent[1];
+    this.mapBottom = this.extent[2];
+    this.mapTop = this.extent[3];
+    this.mapWidth = this.extent[1] - this.extent[0];
+    this.mapHeight = this.extent[3] - this.extent[2];
+    this.screenObjects = [];
+  };
+  
+  JsonMap.prototype = {
+    // Get extent from raw data
+    getExtent: function() {
+      that = this;
+      var minX = Number.POSITIVE_INFINITY,
+          maxX = Number.NEGATIVE_INFINITY,
+          minY = Number.POSITIVE_INFINITY,
+          maxY = Number.NEGATIVE_INFINITY;
+      for ( var i=0, n=geojson.features.length; i<n; i++ ) {
+        var bminX = Number.POSITIVE_INFINITY,
+            bmaxX = Number.NEGATIVE_INFINITY,
+            bminY = Number.POSITIVE_INFINITY,
+            bmaxY = Number.NEGATIVE_INFINITY,
+            coords = geojson.features[i].geometry.coordinates,
+            x, y;
+        if ( coords[0][0] instanceof Array ) {
+          // multi-geometries
+          for ( var j=0, nParts=coords.length; j < nParts; j++ ) {
+            var part =  coords[j];
+            for ( var k=0, nPoints=part.length; k < nPoints; k++ ) {
+              x = part[k][0], y = part[k][1];
+              if (nPoints > 1) {
+                if (x > maxX) {maxX = x;}
+                if (x < minX) {minX = x;}
+                if (y > maxY) {maxY = y;}
+                if (y < minY) {minY = y;}
+                if (x > bmaxX) {bmaxX = x;}
+                if (x < bminX) {bminX = x;}
+                if (y > bmaxY) {bmaxY = y;}
+                if (y < bminY) {bminY = y;}
+              }
+            }
+          }
+        } else {
+          for ( var k=0, nPoints=coords.length; k < nPoints; k++ ) {
+            x = coords[k][0], y = coords[k][1];
+            if ( nPoints > 1 ) {
+              if (x > maxX) {maxX = x;}
+              if (x < minX) {minX = x;}
+              if (y > maxY) {maxY = y;}
+              if (y < minY) {minY = y;}
+              if (x > bmaxX) {bmaxX = x;}
+              if (x < bminX) {bminX = x;}
+              if (y > bmaxY) {bmaxY = y;}
+              if (y < bminY) {bminY = y;}
+            }
+          }
+        }
+        if ( this.shpType == "Polygon" || this.shpType == "MultiPolygon" ||
+             this.shpType == "LineString" || this.shpType == "Line" ) {
+          that.bbox.push([bminX, bmaxX, bminY, bmaxY]);
+          that.centroids.push([bminX + ((bmaxX - bminX)/2.0), 
+                               bminY + ((bmaxY - bminY)/2.0)]);
+        } else {
+          that.bbox.push([x, x, y, y]);
+          that.centroids.push([x, y]);
+        }
+      }
+      return [minX, maxX, minY, maxY];
+    },
+    // convert raw points to screen coordinators
+    fitScreen: function(screenWeight, screenHeight) {
+      var whRatio = this.mapWidth / this.mapHeight,
+          xyRatio = screenWidth / screenHeight,
+          offsetX = 0.0,
+          offsetY = 0.0; 
+      if ( xyRatio >= whRatio ) {
+        offsetX = (screenWidth - screenHeight * whRatio) / 2.0;
+      } else if ( xyRatio < whRatio ) {
+        offsetY = (screenHeight - screenWidth / whRatio) / 2.0;
+      }
+      screenWidth = screenWidth - offsetX * 2;
+      screenHeight =  screenHeight - offsetY * 2;
+      scaleX = screenWidth / this.mapWidth;
+      scaleY = screenHeight / this.mapHeight;
+      this.screenObjects = [];
+      for ( var i=0, n=geojson.features.length; i<n; i++ ) {
+        var coords = geojson.features[i].geometry.coordinates,
+            screenCoords = [];
+        if ( coords[0][0] instanceof Array ) {
+          // multi-geometries
+          for ( var j=0, nParts=coords.length; j < nParts; j++ ) {
+            var part =  coords[j], 
+                screenPart = [];
+            for ( var k=0, nPoints=part.length; k < nPoints; k++ ) {
+              var x = part[k][0], y = part[k][1];
+              x = scaleX * (x - this.mapLeft) + offsetX;
+              y = scaleY * (this.mapTop - y) + offsetY;
+              screenPart.push([x,y]);
+            }
+            screenCoords.push( screenPart );
+          }
+        } else {
+          for ( var k=0, nPoints=coords.length; k < nPoints; k++ ) {
+            var x = coords[k][0], y = coords[k][1];
+            screenCoords.push([x,y]);
+          }
+        }
+        screenObjects.push(screenCoords);
+      }
     },
   };
   
@@ -611,6 +733,3 @@
     },
     
   };
-  
-  window["GeoVizMap"] = GeoVizMap;
-})(self);

@@ -48,7 +48,7 @@ $(document).ready(function() {
   var canvas = $('<canvas id="test" width="1000" height="1000"></canvas>')
     .appendTo($('#map-container'));
     
-  d3.json("seg_road_G.geojson", function(error, json) {
+  d3.json("chicago.geojson", function(error, json) {
     map = new GeoVizMap(json, canvas); 
   });
   
