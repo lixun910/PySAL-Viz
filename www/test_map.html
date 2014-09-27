@@ -9,11 +9,19 @@ body {
   font-family: "Trebuchet MS", "Helvetica", "Arial",  "Verdana", "sans-serif";
   font-size: 82.5%;
 }
+html, body {
+    width: 100%;
+    height: 100%;
+}
+body > div {
+    width: 90%;
+    height: 100%;
+}
 </style>
 <script src="js/jquery.min.js"></script>
 <script src="js/d3.v3.min.js"></script>
 <script src="js/colorbrewer.js"></script>
-<script src="js/geoviz.js"></script>
+<script src="js/jmap.js"></script>
 <script src="js/utils.js"></script>
 <script>
 
@@ -45,17 +53,17 @@ $(document).ready(function() {
   //////////////////////////////////////////////////////////////
   // Test Map
   //////////////////////////////////////////////////////////////
-  var canvas = $('<canvas id="test" width="1000" height="1000"></canvas>')
+  var canvas = $('<canvas id="test" ></canvas>')
     .appendTo($('#map-container'));
     
-  d3.json("chicago.geojson", function(error, json) {
-    map = new GeoVizMap(json, canvas); 
+  d3.json("b176a80ac11ce6b5f68159c35f619501.json", function(error, json) {
+    map = new GeoVizMap(new JsonMap(json), canvas); 
   });
   
 });
 </script>
 <body>
-<div id="map-container" style="width:1000;height:1000">
+<div id="map-container" style="width:100%;height:100%">
 </div>
 </body>
 </html>
