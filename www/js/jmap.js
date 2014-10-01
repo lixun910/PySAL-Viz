@@ -163,14 +163,13 @@
           bmaxY = Number.NEGATIVE_INFINITY,
           coords = this.geojson.features[i].geometry.coordinates,
           x, y, j, k, part;
-      if ( coords[0][0] instanceof Array ) {
+      if ( Array.isArray(coords[0][0])) {
         // multi-geometries
         for ( j=0, nParts=coords.length; j < nParts; j++ ) {
           part = coords[j];
-          part =  part[0][0] instanceof Array ? part[0] : part;
+          part =  Array.isArray(part[0][0])? part[0] : part;
           for ( k=0, nPoints=part.length; k < nPoints; k++ ) {
             x = part[k][0], y = part[k][1];
-            if (nPoints > 1) {
               if (x > maxX) {maxX = x;}
               if (x < minX) {minX = x;}
               if (y > maxY) {maxY = y;}
@@ -179,13 +178,11 @@
               if (x < bminX) {bminX = x;}
               if (y > bmaxY) {bmaxY = y;}
               if (y < bminY) {bminY = y;}
-            }
           }
         }
       } else {
         for ( k=0, nPoints=coords.length; k < nPoints; k++ ) {
           x = coords[k][0], y = coords[k][1];
-          if ( nPoints > 1 ) {
             if (x > maxX) {maxX = x;}
             if (x < minX) {minX = x;}
             if (y > maxY) {maxY = y;}
@@ -194,7 +191,6 @@
             if (x < bminX) {bminX = x;}
             if (y > bmaxY) {bmaxY = y;}
             if (y < bminY) {bminY = y;}
-          }
         }
       }
       if ( this.shpType == "Polygon" || this.shpType == "MultiPolygon" ||
@@ -231,13 +227,13 @@
     for ( i=0; i<n; i++ ) {
       var screenCoords = [];
       coords = this.geojson.features[i].geometry.coordinates;
-      if ( coords[0][0] instanceof Array ) {
+      if ( Array.isArray(coords[0][0])) {
         // multi-geometries
         nParts=coords.length
         for ( j=0; j < nParts; j++ ) {
           var screenPart = [];
           part = coords[j];
-          if ( part[0][0] instanceof Array ) {
+          if ( Array.isArray(part[0][0])) {
             part = part[0];
           }
           nPoints = part.length;
@@ -399,10 +395,10 @@
     
     drawPolygons: function(ctx, polygons) {
       if ( this.color_theme == undefined ) { 
-        for ( var i=0, n=polygons.length; i<n; i++ ) {
           ctx.beginPath();
+        for ( var i=0, n=polygons.length; i<n; i++ ) {
           var obj = polygons[i];
-          if ( obj[0][0] instanceof Array ) {
+          if ( Array.isArray(obj[0][0])) {
             // multi parts 
             for ( var j=0, nParts=obj.length; j<nParts; j++ ) {
               ctx.moveTo(obj[j][0][0], obj[j][0][1]);
@@ -418,16 +414,17 @@
               ctx.lineTo(x, y);
             }
           }
-              ctx.stroke();
-              ctx.fill();
         } 
+          ctx.stroke();
+          ctx.fill();
       } else {
         for ( var c in this.color_theme ) {
           var ids = this.color_theme[c];
+          ctx.fillStyle = c;
           for ( var i=0, n=ids.length; i< n; ++i) {
             ctx.beginPath();
             var obj = polygons[ids[i]];
-            if ( obj[0][0] instanceof Array ) {
+            if ( Array.isArray(obj[0][0])) {
               // multi parts 
               for ( var j=0, nParts=obj.length; j<nParts; j++ ) {
                 ctx.moveTo(obj[j][0][0], obj[j][0][1]);
@@ -443,7 +440,6 @@
                 ctx.lineTo(x, y);
               }
             }
-            ctx.fillStyle = c;
             ctx.fill();
             ctx.stroke();
           }
@@ -458,7 +454,7 @@
         for ( var i=0, n=lines.length; i<n; i++ ) {
           ctx.beginPath();
           var obj = lines[i];
-          if ( obj[0][0] instanceof Array ) {
+          if ( Array.isArray(obj[0][0])) {
             // multi parts 
             for ( var j=0, nParts=obj.length; j<nParts; j++ ) {
               ctx.moveTo(obj[j][0][0], obj[j][0][1]);
@@ -479,10 +475,11 @@
       } else {
         for ( var c in colors ) {
           var ids = colors[c];
+          ctx.strokeStyle = c;
           for ( var i=0, n=ids.length; i< n; ++i) {
             ctx.beginPath();
             var obj = polygons[ids[i]];
-            if ( obj[0][0] instanceof Array ) {
+            if ( Array.isArray(obj[0][0])) {
               // multi parts 
               for ( var j=0, nParts=obj.length; j<nParts; j++ ) {
                 ctx.moveTo(obj[j][0][0], obj[j][0][1]);
@@ -498,7 +495,6 @@
                 ctx.lineTo(x, y);
               }
             }
-            ctx.strokeStyle = c;
             ctx.stroke();
           }
         }
@@ -515,9 +511,9 @@
         } 
       } else {
         for ( var c in colors ) {
+          ctx.fillStyle = c;
           var ids = colors[c];
           for ( var i=0, n=ids.length; i< n; ++i) {
-            ctx.fillStyle = c;
             var pt = points[ids[i]];
             ctx.fillRect(pt[0], pt[1], 2, 2);
           } 
