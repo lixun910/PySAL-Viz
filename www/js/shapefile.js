@@ -1,53 +1,5 @@
 (function(window,undefined){
 
-    if(window.document && window.Worker){
-        var worker = null;
-
-        var Shapefile = function(o, callback){
-            var
-                t = this,
-                o = typeof o == "string" ? {shp: o} : o
-
-            if (!worker) {
-                var path = (o.jsRoot || "") + "../../media/shapefile.js"
-                var w = worker = this.worker = new Worker(path)
-            } else {
-                var w = worker
-            }
-
-            w.onmessage = function(e){
-                t.data = e.date
-                if(callback) callback(e.data)
-            }
-
-            w.postMessage(["Load", o])
-
-            if(o.dbf) this.dbf = new DBF(o.dbf,function(data){
-                w.postMessage(["Add DBF Attributes", data])
-            })
-        }
-
-        window["Shapefile"] = Shapefile
-        return
-    }
-
-    var IN_WORKER = !window.document
-    if (IN_WORKER) {
-        importScripts('stream.js')
-        onmessage = function(e){
-            switch (e.data[0]) {
-                case "Load":
-                    window.shapefile = new Shapefile(e.data[1])
-                    break
-                case "Add DBF Attributes":
-                    window.shapefile.addDBFDataToGeoJSON(e.data[1])
-                    window.shapefile._postMessage()
-                    break
-                default:
-            }
-        };
-    }
-
     var SHAPE_TYPES = {
         "0": "Null Shape",
         "1": "Point", // standard shapes
@@ -93,16 +45,17 @@
 
             this.readFileHeader()
             this.readRecords()
-            this.formatIntoGeoJson()
+            //this.formatIntoGeoJson()
 
+            /*
             if(o.dbf) this.dbf = IN_WORKER ?
                 null :
                 new DBF(o.dbf,function(data){
-                    that.addDBFDataToGeoJSON(data)
+                    //that.addDBFDataToGeoJSON(data)
                     that._postMessage()
                 })
             else this._postMessage()
-
+            */
         },
         handleFile: function(o) {
             this.options = o
@@ -129,12 +82,12 @@
 
             this.readFileHeader()
             this.readRecords()
-            this.formatIntoGeoJson()            
+            //this.formatIntoGeoJson()            
 
             if(this.options.dbf) this.dbf = IN_WORKER ?
                 null :
                 new DBF(this.options.dbf,function(data){
-                    that.addDBFDataToGeoJSON(data)
+                    //that.addDBFDataToGeoJSON(data)
                     that._postMessage()
                 })
             else this._postMessage()

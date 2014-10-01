@@ -32,6 +32,7 @@
   var BaseMap = function() {
     this.shpType = undefined;
     this.bbox = [];
+    this.centroids = [];
     this.mapExtent = [];
     this.mapLeft = undefined;
     this.mapRight = undefined;
@@ -43,12 +44,97 @@
   };
   
   
-  var ShpMap = function(shpFile ) {
+  //////////////////////////////////////////////////////////////
+  // ShpMap
+  //////////////////////////////////////////////////////////////
+  var ShpMap = function(shpFile) {
+    this.shapefile = new Shapefile({shp:shpFile,jsRoot:'js'});
+    this.shpType = this.shapefile.header.shapeType;
+    this.mapLeft = this.shapefile.header.bounds.left;
+    this.mapBottom = this.shapefile.header.bounds.bottom;
+    this.mapRight = this.shapefile.header.bounds.right;
+    this.mapTop = this.shapefile.header.bounds.top;
+    this.mapHeight = this.mapTop - this.mapBottom;
+    this.mapWidth = this.mapRight - this.mapLeft;
+    this.extent = [this.mapLeft, this.mapRight, this.mapBottom, this.mapTop];
+    this.bbox = [];
+    this.centroids = [];
+    this.screenCoords = [];
   };
 
-  /**
-   * extent: if show this map on google map which has predefined extent
-   */
+  ShpMap.prototype.fitScreen = function(screenWidth, screenHeight) {
+    // convert raw points to screen coordinators
+    var whRatio = this.mapWidth / this.mapHeight,
+        xyRatio = screenWidth / screenHeight,
+        offsetX = 0.0,
+        offsetY = 0.0; 
+    if ( xyRatio >= whRatio ) {
+      offsetX = (screenWidth - screenHeight * whRatio) / 2.0;
+    } else if ( xyRatio < whRatio ) {
+      offsetY = (screenHeight - screenWidth / whRatio) / 2.0;
+    }
+    screenWidth = screenWidth - offsetX * 2;
+    screenHeight =  screenHeight - offsetY * 2;
+    scaleX = screenWidth / this.mapWidth;
+    scaleY = screenHeight / this.mapHeight;
+    this.screenObjects = [];
+    var parts, x, y, points;
+    for ( var i=0, record; record = this.shapefile.records[i]; i++ ) {
+      points = record.points;
+      this.bbox.push( record.bounds);
+      if ( record.shapeType == "Point" ) {
+        for ( var p = 0; p < points.length; p++ ) {
+          var point = points[p];
+          x = point.x;
+          y = point.y;
+          this.centroids.push([x,y]);
+          x = scaleX * (x - this.mapLeft) + offsetX;
+          y = scaleY * (this.mapTop - y) + offsetY;
+          this.screenObjects.push([x, y]);
+        }
+      } else {
+        parts = record.parts;
+        var screenPart = [];
+        for ( var pt =0; pt < parts.length; pt++ ) {
+          var partIndex = parts[pt],
+              part = [],
+              point;
+          for ( var p = partIndex; p < (parts[pt+1] || points.length); p++) {
+            point = points[p];
+            x = point.x;
+            y = point.y;
+            x = scaleX * (x - this.mapLeft) + offsetX;
+            y = scaleY * (this.mapTop - y) + offsetY;
+            part.push([x, y]);
+          }
+          screenPart.push(part);
+        }
+        this.screenObjects.push(screenPart);
+      }
+    }
+    this.offsetX = offsetX;
+    this.offsetY = offsetY;
+    this.scaleX = scaleX;
+    this.scaleY = scaleY;
+    this.scalePX = 1/scaleX;
+    this.scalePY = 1/scaleY;
+  };
+  
+  ShpMap.prototype.screenToMap = function(px, py) {
+    var x = this.scalePX * (px - this.offsetX) + this.mapLeft;
+    var y = this.mapTop - this.scalePY * (py - this.offsetY);
+    return [x, y];
+  };
+  
+  ShpMap.prototype.mapToScreen = function(x, y) {
+    var px = this.scaleX * (x - this.mapLeft) + this.offsetX;
+    var py = this.scaleY * (this.mapTop - y) + this.offsetY;
+    return [x, y];
+  };
+
+  //////////////////////////////////////////////////////////////
+  // JsonMap
+  //////////////////////////////////////////////////////////////
   var JsonMap = function(geoJson, extent) {
     this.geojson = geoJson;
     this.shpType = this.geojson.features[0].geometry.type;
@@ -76,12 +162,13 @@
           bminY = Number.POSITIVE_INFINITY,
           bmaxY = Number.NEGATIVE_INFINITY,
           coords = this.geojson.features[i].geometry.coordinates,
-          x, y;
+          x, y, j, k, part;
       if ( coords[0][0] instanceof Array ) {
         // multi-geometries
-        for ( var j=0, nParts=coords.length; j < nParts; j++ ) {
-          var part =  coords[j];
-          for ( var k=0, nPoints=part.length; k < nPoints; k++ ) {
+        for ( j=0, nParts=coords.length; j < nParts; j++ ) {
+          part = coords[j];
+          part =  part[0][0] instanceof Array ? part[0] : part;
+          for ( k=0, nPoints=part.length; k < nPoints; k++ ) {
             x = part[k][0], y = part[k][1];
             if (nPoints > 1) {
               if (x > maxX) {maxX = x;}
@@ -96,7 +183,7 @@
           }
         }
       } else {
-        for ( var k=0, nPoints=coords.length; k < nPoints; k++ ) {
+        for ( k=0, nPoints=coords.length; k < nPoints; k++ ) {
           x = coords[k][0], y = coords[k][1];
           if ( nPoints > 1 ) {
             if (x > maxX) {maxX = x;}
@@ -139,19 +226,38 @@
     scaleX = screenWidth / this.mapWidth;
     scaleY = screenHeight / this.mapHeight;
     this.screenObjects = [];
-    for ( var i=0, n=this.geojson.features.length; i<n; i++ ) {
-      var coords = this.geojson.features[i].geometry.coordinates,
-          screenCoords = [];
+    var i, j, k, nParts, part, lastX, lastY, coords,
+        n = this.geojson.features.length;
+    for ( i=0; i<n; i++ ) {
+      var screenCoords = [];
+      coords = this.geojson.features[i].geometry.coordinates;
       if ( coords[0][0] instanceof Array ) {
         // multi-geometries
-        for ( var j=0, nParts=coords.length; j < nParts; j++ ) {
-          var part =  coords[j], 
-              screenPart = [];
-          for ( var k=0, nPoints=part.length; k < nPoints; k++ ) {
-            var x = part[k][0], y = part[k][1];
-            x = scaleX * (x - this.mapLeft) + offsetX;
-            y = scaleY * (this.mapTop - y) + offsetY;
-            screenPart.push([x,y]);
+        nParts=coords.length
+        for ( j=0; j < nParts; j++ ) {
+          var screenPart = [];
+          part = coords[j];
+          if ( part[0][0] instanceof Array ) {
+            part = part[0];
+          }
+          nPoints = part.length;
+          x = part[0][0];
+          y = part[0][1];
+          x = (scaleX * (x - this.mapLeft) + offsetX) | 0;
+          y = (scaleY * (this.mapTop - y) + offsetY) | 0;
+          screenPart.push([x,y]);
+          lastX = x;
+          lastY = y; 
+          for ( k=1; k < nPoints; k++ ) {
+            x = part[k][0];
+            y = part[k][1];
+            x = (scaleX * (x - this.mapLeft) + offsetX) | 0;
+            y = (scaleY * (this.mapTop - y) + offsetY) | 0;
+            if ( x!= lastX || y != lastY ){ 
+              screenPart.push([x,y]);
+              lastX = x;
+              lastY = y;
+            } 
           }
           screenCoords.push( screenPart );
         }
@@ -183,6 +289,9 @@
     return [x, y];
   };
   
+  //////////////////////////////////////////////////////////////
+  // GeoVizMap
+  //////////////////////////////////////////////////////////////
   var GeoVizMap = function(map, mapcanvas, color_theme, id_category, extent) {
     // private members
     this.HLT_BRD_CLR = "#CCC";
@@ -222,7 +331,6 @@
     window.addEventListener('keypress', this.OnKeyDown, true);
     window.addEventListener('resize', this.OnResize, true);
     
-     
     // draw map on Canvas
     this.map.fitScreen(this.mapcanvas.width, this.mapcanvas.height);
     this.draw(this.mapcanvas.getContext("2d"));
@@ -233,11 +341,6 @@
     this.hbuffer.height = this.mapcanvas.height;
     this.draw(this.hbuffer.getContext("2d"), this.HLT_CLR);
    
-    /* 
-      context = _self.mapcanvas.getContext("2d");
-      context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
-      context.drawImage( _self.hbuffer, 0, 0);
-    */
     this.buffer = this.createBuffer(this.mapcanvas);
   };
   
@@ -253,7 +356,7 @@
     // member functions
     updateColor: function(colorbrewer_obj) {
       this.color_theme  = colorbrewer_obj;
-      this.draw();
+      this.draw(this.mapcanvas.getContext("2d"), this.color_theme);
       this.buffer = this.createBuffer(this.mapcanvas);
     },
     
@@ -275,15 +378,18 @@
       context.strokeStyle = _self.HLT_BRD_CLR;
       context.fillStyle = _self.HLT_CLR;
       
-      ids.forEach( function( id) {
-        if (_self.shpType == "Polygon" || _self.shpType == "MultiPolygon") {
-          _self.drawPolygon( context, _self.geojson.features[id] );
-        } else if (_self.shpType == "Point" || _self.shpType == "MultiPoint") {
-          _self.drawPoint( context, _self.geojson.features[id] );
-        } else if (_self.shpType == "LineString" || _self.shpType == "Line") {
-          _self.drawLine( context, _self.geojson.features[id] );
-        }
-      });
+      var screenObjs = [];
+      for ( var i=0, n = ids.length; i < n; i++ ) {
+        screenObjs.push(_self.map.screenObjects[ids[i]]);
+      }
+      if (_self.shpType == "Polygon" || _self.shpType == "MultiPolygon") {
+        _self.drawPolygons( context, screenObjs); 
+      } else if (_self.shpType == "Point" || _self.shpType == "MultiPoint") {
+        _self.drawPoints( context, screenObjs);
+      } else if (_self.shpType == "LineString" || _self.shpType == "Line") {
+        _self.drawLines( context, screenObjs);
+      }
+      
       if (nolinking == undefined) {
         localStorage["HL_LAYER"] = _self.mapcanvas.id;
         localStorage["HL_IDS"] = ids.toString();
@@ -291,8 +397,8 @@
       return context;
     },
     
-    drawPolygons: function(ctx, polygons, colors) {
-      if ( colors == undefined ) { 
+    drawPolygons: function(ctx, polygons) {
+      if ( this.color_theme == undefined ) { 
         for ( var i=0, n=polygons.length; i<n; i++ ) {
           ctx.beginPath();
           var obj = polygons[i];
@@ -304,8 +410,6 @@
                 var x = obj[j][k][0], y = obj[j][k][1];
                 ctx.lineTo(x, y);
               }
-              ctx.stroke();
-              ctx.fill();
             }
           } else {
             ctx.moveTo(obj[0][0], obj[0][1]);
@@ -313,13 +417,13 @@
               var x = obj[k][0], y = obj[k][1];
               ctx.lineTo(x, y);
             }
-            ctx.stroke();
-            ctx.fill();
           }
+              ctx.stroke();
+              ctx.fill();
         } 
       } else {
-        for ( var c in colors ) {
-          var ids = colors[c];
+        for ( var c in this.color_theme ) {
+          var ids = this.color_theme[c];
           for ( var i=0, n=ids.length; i< n; ++i) {
             ctx.beginPath();
             var obj = polygons[ids[i]];
@@ -332,18 +436,16 @@
                   ctx.lineTo(x, y);
                 }
               }
-              ctx.stroke();
-              ctx.fillStyle = c;
-              ctx.fill();
             } else {
               ctx.moveTo(obj[0][0], obj[0][1]);
               for ( var k=1, nPoints=obj.length; k<nPoints; k++) {
                 var x = obj[k][0], y = obj[k][1];
                 ctx.lineTo(x, y);
               }
-              ctx.stroke();
-              ctx.fill();
             }
+            ctx.fillStyle = c;
+            ctx.fill();
+            ctx.stroke();
           }
         }
       }
@@ -364,7 +466,6 @@
                 var x = obj[j][k][0], y = obj[j][k][1];
                 ctx.lineTo(x, y);
               }
-              ctx.stroke();
             }
           } else {
             ctx.moveTo(obj[0][0], obj[0][1]);
@@ -372,8 +473,8 @@
               var x = obj[k][0], y = obj[k][1];
               ctx.lineTo(x, y);
             }
-            ctx.stroke();
           }
+          ctx.stroke();
         } 
       } else {
         for ( var c in colors ) {
@@ -389,8 +490,6 @@
                   var x = obj[j][k][0], y = obj[j][k][1];
                   ctx.lineTo(x, y);
                 }
-                ctx.strokeStyle = c;
-                ctx.stroke();
               }
             } else {
               ctx.moveTo(obj[0][0], obj[0][1]);
@@ -398,8 +497,9 @@
                 var x = obj[k][0], y = obj[k][1];
                 ctx.lineTo(x, y);
               }
-              ctx.stroke();
             }
+            ctx.strokeStyle = c;
+            ctx.stroke();
           }
         }
       }  
@@ -425,7 +525,7 @@
       }  
     },
     
-    draw: function(context,  fillColor, strokeColor, colors) {
+    draw: function(context,  fillColor, strokeColor) {
       context.imageSmoothingEnabled= false;
       if (_self.shpType == "LineString" || _self.shpType == "Line") {
         context.strokeStyle = fillColor ? fillColor : _self.FILL_CLR;
@@ -584,7 +684,6 @@
         
         context.drawImage( _self.hbuffer, 0, 0);
         context.restore();
-        console.log(hdraw.length);
         _self.drawSelect(context, hdraw, _self.HLT_BRD_CLR, _self.HLT_CLR);
         _self.drawSelect(context, ddraw, _self.STROKE_CLR, _self.FILL_CLR);
         
@@ -601,7 +700,7 @@
       if ( _self.isMouseDown == true) {
         if ( _self.startX == x && _self.startY == y ) {
           // point select
-          var pt = _self.screenToMap(x, y);
+          var pt = _self.map.screenToMap(x, y);
           x = pt[0];
           y = pt[1];
           _self.map.bbox.forEach( function( box, i ) {
@@ -623,6 +722,7 @@
     
   };
   
+  window["ShpMap"] = ShpMap;
   window["JsonMap"] = JsonMap;
   window["GeoVizMap"] = GeoVizMap;
 })(self);

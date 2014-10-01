@@ -7,6 +7,7 @@ from websocket import create_connection
 import shapefile
 import zipfile
 import urllib2, urllib
+from rdp import rdp
 
 __author__='Xun Li <xunli@asu.edu>'
 __all__=['clean_ports','setup','getuuid','shp2json','show_map','get_selected', 'select','quantile_map','lisa_map','scatter_plot_matrix']
@@ -285,7 +286,7 @@ def json2shp(uuid, json_path):
        
     print "creating shp from geojson..." 
     
-def shp2json(shp,rebuild=False):
+def shp2json(shp,dbf, rebuild=False):
     """
     Create a GeoJson file from pysal.shp object and store it in www/ path.
     Which can be visited using http://localhost:8000/*.json
@@ -302,16 +303,22 @@ def shp2json(shp,rebuild=False):
    
     if not os.path.exists(www_path) or rebuild==True: 
         print "reading data ..."
-        reader = shapefile.Reader(shp.dataPath)
-        fields = reader.fields[1:]
-        field_names = [field[0] for field in fields]
         buffer = []
-        for i, sr in enumerate(reader.shapeRecords()):
-            field_names.append("GEODAID")
-            sr.record.append(i)
-            atr = dict(zip(field_names, sr.record))
-            geom = sr.shape.__geo_interface__
-            buffer.append(dict(type="Feature", geometry=geom, properties=atr))
+        field_names = dbf.header
+        for i, geom in enumerate(shp):
+            atr = dict(zip(field_names, dbf[i][0]))
+            atr["GEODAID"] = i
+            geo = geom.__geo_interface__
+            coords = geo["coordinates"]
+            """ 
+            for i, part in enumerate(coords):
+                if isinstance(part[0], tuple):
+                    coords[i] = rdp(part, epsilon=0.2)
+                elif isinstance(part[0][0], tuple):
+                    for j, sub in enumerate(part):
+                        coords[i][j] = rdp(sub, epsilon=0.2)
+            """ 
+            buffer.append(dict(type="Feature", geometry=geo, properties=atr))
         
         geojson = open(www_path, "w")
         geojson.write(json.dumps({"type": "FeatureCollection","features": buffer}))
@@ -319,7 +326,7 @@ def shp2json(shp,rebuild=False):
     else:
         print "The geojson data has been created before. If you want re-create geojson data, please call shp2json(shp, rebuild=True)."
 
-def show_map(shp):
+def show_map(shp, dbf):
     """
     Ideally, users need to open and process shapefile using:
     >>>> shp = pysal.open(pysal.examples.get_path('columbus.shp'),'r')
@@ -336,7 +343,7 @@ def show_map(shp):
     
     To create a scatter plot, users need to 
     """
-    shp2json(shp)
+    shp2json(shp, dbf)
     
     global WS_SERVER 
     ws = create_connection(WS_SERVER)
@@ -763,6 +770,12 @@ def cartodb_count_pts_in_polys(poly_tbl, pt_tbl, count_col_name):
     pass
 
 if __name__ == '__main__':
+    shp_path = "/Users/xun/Desktop/data/world_no_antarctis.shp"
+    shp = pysal.open(shp_path)
+    dbf = pysal.open(shp_path[:-3]+"dbf") 
+   
+    shp2json(shp, dbf, True)
+    """ 
     setup()
     
     setup_cartodb("340808e9a453af9680684a65990eb4eb706e9b56","lixun910")
@@ -782,6 +795,8 @@ if __name__ == '__main__':
     
     # download data for LISA 
     shp_path = cartodb_get_data(poly_tbl, [var_name])
+    shp = pysal.open(shp_path)
+    dbf = pysal.open(shp_path[:-3]+"dbf") 
      
     # running LISA
     shp = pysal.open(shp_path)
@@ -802,3 +817,4 @@ if __name__ == '__main__':
     
     #show_map(shp)
     #start_answermachine()
+    """

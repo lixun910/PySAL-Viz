@@ -6,6 +6,14 @@
 body {
   font: 11px sans-serif;
 }
+svg, canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+#chart {
+  position: relative;
+}
 .axis path,
 .axis line {
   fill: none;
@@ -83,7 +91,8 @@ $(document).ready(function() {
       uuid = msg.uuid, //getParameterByName("uuid"),
       title = msg.title,
       fields = msg.fields,
-      layerDict = window.opener.layerDict;
+      layerDict = window.opener.layerDict,
+      selected = [];
    
   localStorage["HL_LAYER"] = uuid;
   var svg_w = 800, 
@@ -94,13 +103,14 @@ $(document).ready(function() {
   if ( uuid in layerDict && fields.length == 2) {
     var layer = layerDict[uuid];
     var json = layer.data;
-    var data = [], data_copy = [], qtree_data=[];
+    var data = [], data_copy = [], data_dict=[], data_map=[];
     
-    json.features.forEach( function(feat) {
+    json.features.forEach( function(feat,i ) {
       var x = feat.properties[fields[0]],
           y = feat.properties[fields[1]];
       data_copy.push([x,y]);
       data.push([x,y]);
+      data_dict[[x,y]] = i;
     });
     data_copy.sort(function(a,b) { return a[0] - b[0]; });
         
@@ -130,14 +140,18 @@ $(document).ready(function() {
     var xMin = d3.min(data, xValue), xMax = d3.max(data, xValue),
         yMin = d3.min(data, yValue), yMax = d3.max(data, yValue),
         xExt = (xMax - xMin) / 10.0, yExt = (yMax - yMin) / 10.0;
-        
 
     var quadtree = d3.geom.quadtree()
         .extent([[xMin, yMin], [xMax, yMax]])
         (data);
-        
+       
+    d3.selectAll("canvas")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .style("padding", margin.top + "px " + margin.right + "px " + margin.bottom + "px " + margin.left + "px ");
     // add the graph canvas to the body of the webpage
-    var svg = d3.select("#map-container").append("svg")
+    //var svg = d3.select("#map-container").append("svg")
+    var svg = d3.select("svg")
         .attr("width", width + margin.left + margin.right)
         .attr("height", height + margin.top + margin.bottom)
       .append("g")
@@ -170,18 +184,33 @@ $(document).ready(function() {
         .attr("dy", ".71em")
         .style("text-anchor", "end")
         .text(fields[1]);
-  
-    // draw dots
-    var point = svg.selectAll(".point")
-        .data(data)
-      .enter().append("rect")
-        .attr("class", "point")
-        .attr("x", xMap)
-        .attr("y", yMap)
-        .attr("width", 2)
-        .attr("height", 2)
-        .attr("id", function(d,i){return i;});
         
+    // draw points
+    var background = document.getElementById('background').getContext('2d');
+    background.strokeStyle = "rgba(0,0,0,0.02)";
+    
+    var hbuffer = document.createElement("canvas");
+    hbuffer.width = document.getElementById('foreground').width;
+    hbuffer.height = document.getElementById('foreground').height;
+    var hctx = hbuffer.getContext('2d');
+    hctx.strokeStyle = "rgba(255,0,0,1)";
+    hctx.fillStyle = "rgba(255,0,0,1)";
+    
+    for (var i=0, n=data.length; i< n; i++ ) {
+      var x = data[i][0], y = data[i][1];
+      x = xMap(data[i]);
+      y = yMap(data[i]);
+      data_map.push([x, y]); 
+      background.fillRect(x, y, 2,2);
+      hctx.fillRect(x,y,2,2);
+    }
+    
+    var buffer = document.createElement("canvas");
+    buffer.width = document.getElementById('background').width;
+    buffer.height = document.getElementById('background').height;
+    var bufferCtx = buffer.getContext("2d");
+    bufferCtx.drawImage(document.getElementById('background'), 0, 0);
+    
     // Render the fitted line
     var draw_linear_regression = function() {
       svg.select(".reg").remove();
@@ -271,6 +300,8 @@ $(document).ready(function() {
         brush.clear();
         //brush.x(x[p.x]).y(y[p.y]).data = p;
       }
+        background.clearRect(0,0,width+1,height+1);
+        background.drawImage(buffer, 0,0);
     }
   
     // Highlight the selected circles.
@@ -278,21 +309,28 @@ $(document).ready(function() {
       var e = brush.extent();
       var x0 = e[0][0], y0 = e[0][1], 
           x1 = e[1][0], y1 = e[1][1];
+      background.clearRect(0,0,width+1,height+1);
+      background.drawImage(buffer, 0,0);
+      background.save();
+      background.beginPath();
+      background.rect(x0,y0, x1-x0, y1-y0);
+      background.clip();
+      background.drawImage(hbuffer, 0, 0);
+      background.restore();
+      
       x0 = xScale.invert(x0),
       x1 = xScale.invert(x1),
       y0 = yScale.invert(y0),
-      y1 = yScale.invert(y1),
-      point.each(function(d) { d.selected = false; });
+      y1 = yScale.invert(y1);
+     
+      selected = [];
       search(quadtree, x0, y1, x1, y0);
-      var select_ids = {};
-      point.classed("selected", function(d,i) { 
-       if (d.selected) select_ids[i] = 1;
-       return d.selected; 
-      });
-      // sync
+      
       var hl = "";
-      for(var k in select_ids) {
-        hl = hl + k + ","
+      for( var i=0, n=selected.length; i<n; i++ ) {
+        var idx = selected[i];
+        //foreground.fillRect(data_map[idx][0], data_map[idx][1], 2, 2);
+        hl = hl + idx + ","
       }
       localStorage.setItem('HL_IDS', hl);
     }
@@ -300,6 +338,8 @@ $(document).ready(function() {
     // If the brush is empty, select all circles.
     function brushend() {
       if (brush.empty()) {
+        background.clearRect(0,0,width+1,height+1);
+        background.drawImage(buffer, 0,0);
       }
     }
  
@@ -308,7 +348,9 @@ $(document).ready(function() {
       quadtree.visit(function(node, x1, y1, x2, y2) {
         var p = node.point;
         if (p) {
-          p.selected = (p[0] >= x0) && (p[0] < x3) && (p[1] >= y0) && (p[1] < y3);
+          if (p[0] >= x0 && p[0] < x3 && p[1] >= y0 && p[1] < y3) {
+            selected.push(data_dict[p]);
+          }
         }
         return x1 >= x3 || y1 >= y3 || x2 < x0 || y2 < y0;
       });
@@ -319,8 +361,11 @@ $(document).ready(function() {
 });
 </script>
 <body>
-<div id="map-container" style="align:center; border: 0px solid red;height: 100%;">
+<div id="map-container" style="position: relative; align:center; border: 0px solid red;height: 100%;">
   <div id="title" style="font-size:18px; margin:10px;">Title</div>
+  <canvas id="background"></canvas>
+  <canvas id="foreground"></canvas>
+  <svg></svg>
 </div>
 <div id="selector" style="margin:10px; float: left;">
  <table><tr><td width=250>Change the bandwidth of fitted LOESS curve:</td>

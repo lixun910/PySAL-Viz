@@ -19,6 +19,10 @@ body > div {
 }
 </style>
 <script src="js/jquery.min.js"></script>
+<script src="js/stream.js"></script>
+<script src="js/shapefile.js"></script>
+<script src="js/dbf.js"></script>
+
 <script src="js/d3.v3.min.js"></script>
 <script src="js/colorbrewer.js"></script>
 <script src="js/jmap.js"></script>
@@ -55,11 +59,14 @@ $(document).ready(function() {
   //////////////////////////////////////////////////////////////
   var canvas = $('<canvas id="test" ></canvas>')
     .appendTo($('#map-container'));
-    
-  d3.json("b176a80ac11ce6b5f68159c35f619501.json", function(error, json) {
+  var start = new Date().getTime();
+  d3.json("chicago.geojson", function(error, json) {
     map = new GeoVizMap(new JsonMap(json), canvas); 
+    var end = new Date().getTime();
+    var time = end - start;
+    alert('Execution time: ' + time);
   });
-  
+  //map = new GeoVizMap(new ShpMap("chicago.shp"), canvas); 
 });
 </script>
 <body>
