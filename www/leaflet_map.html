@@ -27,22 +27,20 @@ $(document).ready(function() {
   //////////////////////////////////////////////////////////////
   // Local Storage Brushing/Linking
   //////////////////////////////////////////////////////////////
-  localStorage.clear();
+  
   $(window).bind('storage', function(e) {
-    var uuid = localStorage.getItem('HL_LAYER');
-    
-    if ( uuid in window.opener.layerDict ) {
-      var select_ids = localStorage.getItem('HL_IDS').split(",");
-      for ( var i=0; i<select_ids.length; i++ ) {
-        select_ids[i] = parseInt(select_ids[i]);
-      }
-      var layer = window.opener.layerDict[uuid];
-      layer.basemap.highlight(select_ids);
-      for (var i=0, n=layer.maps.length; i< n; i++) {
-        layer.maps[i].highlight(select_ids);
-      }
-      for (var i=0, n=layer.plots.length; i< n; i++) {
-        layer.plots[i].highlight(select_ids);
+    var hl_ids = JSON.parse(localStorage.getItem('HL_IDS')),
+        hl_ext = JSON.parse(localStorage.getItem('HL_MAP'));
+    for ( var uuid in hl_ids ) {
+      if ( uuid in mapDict ) {
+        var map = mapDict[uuid];
+        var ids = hl_ids[uuid];
+        console.log("highlight");
+        if ( uuid in hl_ext ) {
+          map.highlightExt(ids, hl_ext[uuid]);
+        } else {
+          map.highlight(hl_ids[uuid]);
+        }
       }
     }
   });
@@ -58,7 +56,7 @@ $(document).ready(function() {
       k = id_array.length,
       colors = colorbrewer.YlGn[k],
       type = getParameterByName("type"),
-      layerDict = window.opener.layerDict;
+      data = window.opener.dataDict[uuid];
   //window.opener.tempMsg = undefined;
  
   if (type == "lisa") {
@@ -66,88 +64,84 @@ $(document).ready(function() {
   }
   //When a new theme map (e.g. quantile map) is required to create, both the 
   //geometries and table are needed. 
-  if ( uuid in layerDict) {
-    var layer = layerDict[uuid];
-    data = layer.data;
     
-    var hoverStyle = {
-      "fillOpacity": 0.5
-    };
-    var style = {
-        "clickable": true,
-        "color": "white",
-        "fillColor": "#00D",
-        "weight": 1.0,
-        "opacity": 1.0,
-        "fillOpacity": 0.8
-    };
+  var hoverStyle = {
+    "fillOpacity": 0.5
+  };
+  var style = {
+      "clickable": true,
+      "color": "white",
+      "fillColor": "#00D",
+      "weight": 1.0,
+      "opacity": 1.0,
+      "fillOpacity": 0.8
+  };
 
-    geojson = L.geoJson(data, {
-      style: function(feat) {
-        if ( id_array ) {
-          var geodaid = feat.properties.GEODAID;
-          for (var i in id_array) {
-            if (id_array[i].indexOf(geodaid) > -1) {
-              style.fillColor = colors[i];
-              break;
-            }
+  geojson = L.geoJson(data, {
+    style: function(feat) {
+      if ( id_array ) {
+        var geodaid = feat.properties.GEODAID;
+        for (var i in id_array) {
+          if (id_array[i].indexOf(geodaid) > -1) {
+            style.fillColor = colors[i];
+            break;
           }
-        } 
-        return style;
-      },
-      onEachFeature: function(feature, layer) {
-        if (feature.properties) {
-          var popupString = '<div class="popup" style="height:250px;width:110%">';
-          popupString += '<h2>Properties</h2>';
-          popupString += '<div style="height:200px;overflow:auto;margin-bottom:10px;">';
-          popupString += '<table width="80%">';
-          for (var k in feature.properties) {
-            var v = feature.properties[k];
-            popupString += '<tr><td>'+k + '</td><td>' + v + '</td></td>';
-          }
-          popupString += '</table></div></div>';
-          layer.bindPopup(popupString);
         }
-        layer.on({
-          mouseover: function(e){
-            var layer = e.target;
-            layer.setStyle({
-              color: '#666',
-              weight: 3.0,
-              fillOpacity: 0.7,
-            });
-          },
-          mouseout: function(e){
-            geojson.resetStyle(e.target)
-          },
-          dblclick: function(e) {
-            map.fitBounds(e.target.getBounds());
-          }
-        });
+      } 
+      return style;
+    },
+    onEachFeature: function(feature, layer) {
+      if (feature.properties) {
+        var popupString = '<div class="popup" style="height:250px;width:110%">';
+        popupString += '<h2>Properties</h2>';
+        popupString += '<div style="height:200px;overflow:auto;margin-bottom:10px;">';
+        popupString += '<table width="80%">';
+        for (var k in feature.properties) {
+          var v = feature.properties[k];
+          popupString += '<tr><td>'+k + '</td><td>' + v + '</td></td>';
+        }
+        popupString += '</table></div></div>';
+        layer.bindPopup(popupString);
       }
-    });
-    
-    map = L.map('map').fitBounds(geojson.getBounds());
-    
-    L.tileLayer('https://{s}.tiles.mapbox.com/v3/{id}/{z}/{x}/{y}.png', {
-      maxZoom: 18,
-      attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, ' + 
-      '<a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
-      'Imagery © <a href="http://mapbox.com">Mapbox</a>',
-      id: 'examples.map-20v6611k'
-    }).addTo(map);
+      layer.on({
+        mouseover: function(e){
+          var layer = e.target;
+          layer.setStyle({
+            color: '#666',
+            weight: 3.0,
+            fillOpacity: 0.7,
+          });
+        },
+        mouseout: function(e){
+          geojson.resetStyle(e.target)
+        },
+        dblclick: function(e) {
+          map.fitBounds(e.target.getBounds());
+        }
+      });
+    }
+  });
   
-    geojson.addTo(map);
- 
-    //map = new GeoVizMap(json, $('#'+uuid), colors, id_array);
-    //if ( "maps" in layer ) {
-    //  layer["maps"].push(map);
-    //} else { 
-    //  layer["maps"] = [map];
-    //}
-    console.log(layer, window.opener.layerDict);
-  }
+  map = L.map('map').fitBounds(geojson.getBounds());
   
+  L.tileLayer('https://{s}.tiles.mapbox.com/v3/{id}/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, ' + 
+    '<a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
+    'Imagery © <a href="http://mapbox.com">Mapbox</a>',
+    id: 'examples.map-20v6611k'
+  }).addTo(map);
+
+  geojson.addTo(map);
+
+  //map = new GeoVizMap(json, $('#'+uuid), colors, id_array);
+  //if ( "maps" in layer ) {
+  //  layer["maps"].push(map);
+  //} else { 
+  //  layer["maps"] = [map];
+  //}
+  console.log(layer, window.opener.layerDict);
+
   // fill content of color-selector
   $.each(colorbrewer, function(k,v){
     $('#color-selector')

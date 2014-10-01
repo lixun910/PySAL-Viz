@@ -129,7 +129,7 @@
   ShpMap.prototype.mapToScreen = function(x, y) {
     var px = this.scaleX * (x - this.mapLeft) + this.offsetX;
     var py = this.scaleY * (this.mapTop - y) + this.offsetY;
-    return [x, y];
+    return [px, py];
   };
 
   //////////////////////////////////////////////////////////////
@@ -294,7 +294,7 @@
   JsonMap.prototype.mapToScreen = function(x, y) {
     var px = this.scaleX * (x - this.mapLeft) + this.offsetX;
     var py = this.scaleY * (this.mapTop - y) + this.offsetY;
-    return [x, y];
+    return [px, py];
   };
   
   //////////////////////////////////////////////////////////////
@@ -379,12 +379,15 @@
     },
   
     highlight: function( ids, context, nolinking ) {
+      if ( ids == undefined ) 
+        return;
+        
       if ( context == undefined) { 
         context = _self.mapcanvas.getContext("2d");
         context.imageSmoothingEnabled= false;
         context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
         context.drawImage( _self.buffer, 0, 0);
-        context.lineWidth = 1;
+        context.lineWidth = 0.3;
       } 
       if (_self.shpType == "LineString" || _self.shpType == "Line") {
         context.strokeStyle = _self.HLT_CLR;
@@ -409,11 +412,84 @@
         _self.drawLines( context, screenObjs, colors);
       }
       
-      if (nolinking == undefined) {
-        localStorage["HL_LAYER"] = _self.mapcanvas.id;
-        localStorage["HL_IDS"] = ids.toString();
-      }
       return context;
+    },
+    
+    highlightExt: function( ids, extent ) {
+      context = _self.mapcanvas.getContext("2d");
+      context.imageSmoothingEnabled= false;
+      context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
+      context.drawImage( _self.buffer, 0, 0);
+      
+      if ( ids.length == 0) {
+        return;
+      }
+      var x0 = extent[0], y0 = extent[1], x1 = extent[2], y1 = extent[3];
+      var pt0 = _self.map.mapToScreen(x0, y0),
+          pt1 = _self.map.mapToScreen(x1, y1),
+          startX = pt0[0], startY = pt0[1], 
+          w = pt1[0] - startX, 
+          h = pt1[1] - startY;
+      console.log(pt0, pt1, startX, startY, w, h); 
+          
+      if (w == 0 && h == 0) 
+        return;
+     
+      var hdraw = [], ddraw = []; 
+      var minPX = Math.min( pt0[0], pt1[0]),
+          maxPX = Math.max( pt0[0], pt1[0]),
+          minPY = Math.min( pt0[1], pt1[1]),
+          maxPY = Math.max( pt0[1], pt1[1]);
+      for ( var i=0, n=_self.map.centroids.length; i<n; ++i) {
+        var pt = _self.map.centroids[i],
+            inside = false;
+        if ( pt[0] >= minPX && pt[0] <= maxPX && 
+             pt[1] >= minPY && pt[1] <= maxPY) {
+          inside = true;
+        }
+        // fine polygons on border of rect
+        var bx = _self.map.bbox[i]; 
+        if (bx[0] > x1 || bx[1] < x0 || bx[2] > y1 || bx[3] < y0) {
+        } else if (x0 < bx[0] && bx[1] < x1 && y0 < bx[2] && bx[3] < y1) {
+        } else {
+          if (inside) {
+            // draw it with highligh
+            hdraw.push(i);
+          } else {
+            // draw it with default
+            ddraw.push(i);
+          }
+        }
+      }
+      if ( hdraw.length + ddraw.length == 0) {
+        return false;
+      }
+      
+      context.save();
+      // draw a selection box
+      context.beginPath();
+      if ( _self.isBrushing == true ) {
+        context.rect(startX, startY, 
+                     _self.brushRect.GetW(), _self.brushRect.GetH());
+      } else {
+        context.rect( startX, startY, w, h);
+      }
+      context.closePath();
+     
+      context.clip();
+      
+      context.drawImage( _self.hbuffer, 0, 0);
+      context.restore();
+      _self.highlight(hdraw, context);
+      _self.drawSelect(ddraw, context);
+      /*
+      context.beginPath();
+      context.rect( startX, startY, w, h);
+      context.strokeStyle = "black";
+      context.stroke();
+      context.closePath();
+     */ 
+      return true;
     },
     
     drawPolygons: function(ctx, polygons, colors) {
@@ -565,7 +641,7 @@
       }
     }, 
     
-    drawSelect: function( context, ids ) {
+    drawSelect: function( ids, context ) {
       var ids_dict = {};     
       for ( var i=0, n=ids.length; i<n; i++ ) {
         ids_dict[ids[i]] = 1;
@@ -578,7 +654,7 @@
           var new_ids = [];
           for (var i in orig_ids ) {
             var oid = orig_ids[i];
-            if ( ids_dict[oid] != 1) {
+            if ( ids_dict[oid] == 1) {
               new_ids.push(oid);
             }
           }
@@ -603,7 +679,15 @@
       _self.mapcanvas.width = newWidth;
       _self.mapcanvas.height = newHeight;
       _self.map.fitScreen(newWidth, newHeight);
-      _self.draw(_self.mapcanvas.getContext("2d"));
+      _self.draw(_self.mapcanvas.getContext("2d"), _self.color_theme);
+      
+      
+      _self.hbuffer = document.createElement("canvas");
+      _self.hbuffer.width = _self.mapcanvas.width;
+      _self.hbuffer.height = _self.mapcanvas.height;
+      _self.draw(_self.hbuffer.getContext("2d"), undefined, _self.HLT_CLR);
+     
+      _self.buffer = _self.createBuffer(_self.mapcanvas);
       console.log("OnResize");
     },
     OnKeyDown: function( e ) {
@@ -699,6 +783,7 @@
           context.imageSmoothingEnabled= false;
           context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
           context.drawImage( _self.buffer, 0, 0);
+          
           context.save();
           // draw a selection box
           context.beginPath();
@@ -716,14 +801,30 @@
           
           context.drawImage( _self.hbuffer, 0, 0);
           context.restore();
-          _self.highlight( hdraw, context);
-          _self.drawSelect(context, ddraw);
+          _self.highlight(hdraw, context);
+          _self.drawSelect(ddraw, context);
+          console.log(hdraw, ddraw);
           
           context.beginPath();
           context.rect( startX, startY, w, h);
           context.strokeStyle = "black";
           context.stroke();
           context.closePath();
+          
+          // trigger to brush/link
+          var hl = {};
+          if ( localStorage["HL_IDS"] ){ 
+            hl = JSON.parse(localStorage["HL_IDS"]);
+          }
+          hl[_self.mapcanvas.id] = _self.selected;
+          localStorage["HL_IDS"] = JSON.stringify(hl);
+         
+          var hl_map = {}; 
+          if ( localStorage["HL_MAP"] ){ 
+            hl_map = JSON.parse(localStorage["HL_MAP"]);
+          }
+          hl_map[_self.mapcanvas.id] = [x0, y0, x1, y1];
+          localStorage["HL_MAP"] = JSON.stringify(hl_map);
         }
       }
     },
@@ -741,9 +842,24 @@
                  y > box[2] && y < box[3] ) {
               _self.highlight([i]);
               _self.isMouseDown = false;
+              
               return;
             }
           });
+          // trigger brush/link
+          var hl = {};
+          if ( localStorage["HL_IDS"] ){ 
+            hl = JSON.parse(localStorage["HL_IDS"]);
+          }
+          hl[_self.mapcanvas.id] = [];
+          localStorage["HL_IDS"] = JSON.stringify(hl);
+          
+          var hl_map = {}; 
+          if ( localStorage["HL_MAP"] ){ 
+            hl_map = JSON.parse(localStorage["HL_MAP"]);
+          }
+          hl_map[_self.mapcanvas.id] = [0,0,0,0];
+          localStorage["HL_MAP"] = JSON.stringify(hl_map);
         }
         else if ( _self.isKeyDown == true ) {
           // setup brushing box

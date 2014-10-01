@@ -10,8 +10,8 @@ body {
   font-size: 82.5%;
 }
 html, body {
-    width: 100%;
-    height: 100%;
+    width: 90%;
+    height: 90%;
 }
 </style>
 <script src="js/jquery.min.js"></script>
@@ -37,7 +37,10 @@ layerDict
     ...
   }
 */
-var layerDict = {};
+var mapDict = {};
+var plotDict = {};
+var dataDict = {};
+
 var socket;
 var tempMsg;
 
@@ -45,22 +48,19 @@ $(document).ready(function() {
   //////////////////////////////////////////////////////////////
   // Local Storage Brushing/Linking
   //////////////////////////////////////////////////////////////
-  localStorage.clear();
   $(window).bind('storage', function(e) {
-    var uuid = localStorage.getItem('HL_LAYER');
-    
-    if ( uuid in layerDict ) {
-      var select_ids = localStorage.getItem('HL_IDS').split(",");
-      for ( var i=0; i<select_ids.length; i++ ) {
-        select_ids[i] = parseInt(select_ids[i]);
-      }
-      var layer = layerDict[uuid];
-      layer.basemap.highlight(select_ids, "nolinking");
-      for (var i=0, n=layer.maps.length; i< n; i++) {
-        layer.maps[i].highlight(select_ids, "nolinking");
-      }
-      for (var i=0, n=layer.plots.length; i< n; i++) {
-        layer.plots[i].highlight(select_ids, "nolinking");
+    var hl_ids = JSON.parse(localStorage.getItem('HL_IDS')),
+        hl_ext = JSON.parse(localStorage.getItem('HL_MAP'));
+    for ( var uuid in hl_ids ) {
+      if ( uuid in mapDict ) {
+        var map = mapDict[uuid];
+        var ids = hl_ids[uuid];
+        console.log("highlight");
+        if ( uuid in hl_ext ) {
+          map.highlightExt(ids, hl_ext[uuid]);
+        } else {
+          map.highlight(hl_ids[uuid]);
+        }
       }
     }
   });
@@ -173,24 +173,19 @@ var add_layer = function(o){
     // add layer in an existing map
     uuid = o["uuid"];
     var json_path = "./tmp/" + uuid + ".json";
-    var basemap = layerDict[uuid].basemap;
+    var map = mapDict[uuid];
     
     d3.json(json_path, function(data) {
-      basemap.add_layer(data); 
+      map.add_layer(new JsonMap(data)); 
     });
     
   } else {
     var json_path = "./tmp/" + uuid + ".json";
-    $('<canvas id="' + uuid + '"></canvas>')
-      .appendTo($('#map-container'));
+    $('<canvas id="' + uuid + '"></canvas>').appendTo($('#map-container'));
     d3.json(json_path, function(data) {
-      var basemap = new GeoVizMap(new JsonMap(data), $('#'+uuid));
-      layerDict[uuid] = {
-        "data" : data, 
-        "basemap" : basemap,
-        "maps": [],
-        "plots": [],
-      };
+      var map = new GeoVizMap(new JsonMap(data), $('#'+uuid));
+      mapDict[uuid] = map;
+      dataDict[uuid] = data;
     });
   }
   $('#loading').remove();
@@ -215,7 +210,7 @@ created quantile map in the main page can also be poped up in a new window.
 var quantile_map = function(o) {
   //Let's try the popup window first.
   var w = window.open(
-    'map.html?type=quantile',
+    'map.html?type=quantile&uuid='+o.uuid,
     "_blank",
     "width=600, height=500, scrollbars=yes"
   );
@@ -281,7 +276,6 @@ var cartodb_mymap = function(msg) {
 /*
 The message for brushing/linking contains 1) layer uuid, 2) data.
 The data could be a list of highlighted object ids, e.g. [1,3,5,6,7..]
-*/
 var select = function(o) {
   for(var uuid in layerDict) {
     if ( uuid == o.uuid ) { 
@@ -310,6 +304,7 @@ var clear_select = function(o) {
     }
   }
 };
+*/
 </script>
 </head>
 
