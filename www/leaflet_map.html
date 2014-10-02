@@ -16,7 +16,7 @@ body {
 <script src="js/jquery.min.js"></script>
 <script src="js/d3.v3.min.js"></script>
 <script src="js/colorbrewer.js"></script>
-<script src="js/geoviz.js"></script>
+<script src="js/jmap.js"></script>
 <script src="js/utils.js"></script>
 <script>
 
@@ -132,16 +132,15 @@ $(document).ready(function() {
     id: 'examples.map-20v6611k'
   }).addTo(map);
 
+  //var point = map.latLngToLayerPoint(new L.LatLng(y, x));
   geojson.addTo(map);
 
-  //map = new GeoVizMap(json, $('#'+uuid), colors, id_array);
-  //if ( "maps" in layer ) {
-  //  layer["maps"].push(map);
-  //} else { 
-  //  layer["maps"] = [map];
-  //}
-  console.log(layer, window.opener.layerDict);
-
+  var colorTheme = {};
+  for ( var i=0, n=id_array.length; i<n; i++ ) {
+    colorTheme[colors[i]] = id_array[i];
+  }
+  map = new GeoVizMap(new JsonMap(data), $('#foreground'), colorTheme, id_array);
+  
   // fill content of color-selector
   $.each(colorbrewer, function(k,v){
     $('#color-selector')
@@ -181,7 +180,11 @@ $(document).ready(function() {
 <div id="legend" style="">Legend</div>
 </td></tr>
 <tr><td>
-<div id="map" style="align:center; margin-top:60px;border: 0px solid red;width: 800px;height:500px;">
+<div id="map-container" style="position: relative; align:center; border: 0px solid red;height: 100%;position: relative;">
+  <div id="map" style="align:center; margin-top:0px;border: 0px solid red;width: 800px;height:500px;">
+  </div>
+  <canvas id="foreground" style="position: absolute; top: 0; left: 0;width: 100%; height: 100%"></canvas>
+</div>
 </td></tr>
 </table>
 </div>
