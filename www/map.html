@@ -70,7 +70,9 @@ $(document).ready(function() {
     for ( var i=0, n=id_array.length; i<n; i++ ) {
       colorTheme[colors[i]] = id_array[i];
     }
-    var map = new GeoVizMap(new JsonMap(json), $('#'+uuid), colorTheme);
+    var map = new GeoVizMap(new JsonMap(json), $('#'+uuid), {
+      "color_theme" :colorTheme
+      });
     mapDict[uuid] = map;
     $('#loading').remove();
   }

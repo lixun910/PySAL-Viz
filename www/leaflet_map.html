@@ -122,7 +122,7 @@ $(document).ready(function() {
     }
   });
   
-  map = L.map('map').fitBounds(geojson.getBounds());
+  map = L.map('map');
   
   L.tileLayer('https://{s}.tiles.mapbox.com/v3/{id}/{z}/{x}/{y}.png', {
     maxZoom: 18,
@@ -132,15 +132,39 @@ $(document).ready(function() {
     id: 'examples.map-20v6611k'
   }).addTo(map);
 
-  //var point = map.latLngToLayerPoint(new L.LatLng(y, x));
-  geojson.addTo(map);
+  //geojson.addTo(map);
 
   var colorTheme = {};
   for ( var i=0, n=id_array.length; i<n; i++ ) {
     colorTheme[colors[i]] = id_array[i];
   }
-  map = new GeoVizMap(new JsonMap(data), $('#foreground'), colorTheme, id_array);
   
+  mymap = new GeoVizMap(new LeafletMap(data, L, map), $('#foreground'), {
+    "color_theme": colorTheme, 
+    "hratio": 1,
+    "vratio": 1,
+    "alpha": 0.9,
+    });
+
+  map.on('zoomstart', function() {
+    mymap.clean();
+  });
+  map.on('zoomend', function() {
+    mymap.update();
+  });
+  map.on('movestart', function(e) {
+    mymap.clean();
+  });
+  map.on('moveend', function(e) {
+    var a = map.getBounds();
+    console.log(a.getWest(), a.getEast(), a.getSouth(), a.getNorth());
+    var op = e.target.getPixelOrigin();
+    var np = e.target._getTopLeftPoint();
+    var offsetX = -np.x + op.x;
+    var offsetY = -np.y + op.y;
+    //mymap.pan(offsetX, offsetY);
+    mymap.update({"offsetX":offsetX, "offsetY":offsetY});
+  });
   // fill content of color-selector
   $.each(colorbrewer, function(k,v){
     $('#color-selector')
@@ -152,9 +176,11 @@ $(document).ready(function() {
   $('#color-selector').change(function(){
     var clr_name = $('#color-selector option:selected').text();
     colors = colorbrewer[clr_name][k];
-    geojson.clearLayers();
-    geojson.addData(data);
-    console.log(colors);
+    var colorTheme = {};
+    for ( var i=0, n=id_array.length; i<n; i++ ) {
+      colorTheme[colors[i]] = id_array[i];
+    }
+    mymap.updateColor(colorTheme);
     $('#legend').empty();
     create_legend($('#legend'), bins, colors); 
   });

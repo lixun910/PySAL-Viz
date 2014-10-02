@@ -221,8 +221,21 @@
     screenHeight =  screenHeight - offsetY * 2;
     scaleX = screenWidth / this.mapWidth;
     scaleY = screenHeight / this.mapHeight;
+    
+    this.offsetX = offsetX;
+    this.offsetY = offsetY;
+    this.scaleX = scaleX;
+    this.scaleY = scaleY;
+    this.scalePX = 1/scaleX;
+    this.scalePY = 1/scaleY;
+    
     this.screenObjects = [];
-    var i, j, k, nParts, part, lastX, lastY, coords,
+    this.latlon2Points(); 
+  };
+    
+  JsonMap.prototype.latlon2Points = function() {
+    this.screenObjects = [];
+    var i, j, k, nParts, part, lastX, lastY, coords, pt,
         n = this.geojson.features.length;
     for ( i=0; i<n; i++ ) {
       var screenCoords = [];
@@ -239,16 +252,18 @@
           nPoints = part.length;
           x = part[0][0];
           y = part[0][1];
-          x = (scaleX * (x - this.mapLeft) + offsetX) | 0;
-          y = (scaleY * (this.mapTop - y) + offsetY) | 0;
+          pt = this.mapToScreen(x, y);
+          x = pt[0] | 0;
+          y = pt[1] | 0;
           screenPart.push([x,y]);
           lastX = x;
           lastY = y; 
           for ( k=1; k < nPoints; k++ ) {
             x = part[k][0];
             y = part[k][1];
-            x = (scaleX * (x - this.mapLeft) + offsetX) | 0;
-            y = (scaleY * (this.mapTop - y) + offsetY) | 0;
+            pt = this.mapToScreen(x, y);
+            x = pt[0] | 0;
+            y = pt[1] | 0;
             if ( x!= lastX || y != lastY ){ 
               screenPart.push([x,y]);
               lastX = x;
@@ -259,15 +274,17 @@
         }
       } else {
         var x = coords[0][0], y = coords[0][1];
-        x = (scaleX * (x - this.mapLeft) + offsetX) | 0;
-        y = (scaleY * (this.mapTop - y) + offsetY) | 0;
+        pt = this.mapToScreen(x, y);
+        x = pt[0] | 0;
+        y = pt[1] | 0;
         screenCoords.push([x,y]);
         lastX = x;
         lastY = y; 
         for ( var k=0, nPoints=coords.length; k < nPoints; k++ ) {
           var x = coords[k][0], y = coords[k][1];
-          x = (scaleX * (x - this.mapLeft) + offsetX) | 0;
-          y = (scaleY * (this.mapTop - y) + offsetY) | 0;
+          pt = this.mapToScreen(x, y);
+          x = pt[0] | 0;
+          y = pt[1] | 0;
           if ( x!= lastX || y != lastY ) {
             screenCoords.push([x,y]);
             lastX = x;
@@ -277,12 +294,6 @@
       }
       this.screenObjects.push(screenCoords);
     }
-    this.offsetX = offsetX;
-    this.offsetY = offsetY;
-    this.scaleX = scaleX;
-    this.scaleY = scaleY;
-    this.scalePX = 1/scaleX;
-    this.scalePY = 1/scaleY;
   };
   
   JsonMap.prototype.screenToMap = function(px, py) {
@@ -298,25 +309,72 @@
   };
   
   //////////////////////////////////////////////////////////////
+  // LeaftletMap inherited from JsonMap
+  //////////////////////////////////////////////////////////////
+  LeafletMap = function(geojson, LL, Lmap) {
+    JsonMap.call(this, geojson);
+   
+    this.LL = LL; 
+    this.Lmap = Lmap;
+    this.Lmap.fitBounds([[this.mapBottom,this.mapLeft],[this.mapTop,this.mapRight]]);
+    /* 
+    this.zoom = this.Lmap.getZoom();
+    this.bounds = this.Lmap.getBounds();
+    
+    this.mapLeft = this.bounds.getWest();
+    this.mapRight = this.bounds.getEast();
+    this.mapBottom = this.bounds.getNorth();
+    this.mapTop = this.bounds.getSouth();
+    this.mapWidth = this.mapRight - this.mapLeft;
+    this.mapHeight = this.mapTop - this.mapBottom;
+    */
+  };
+  
+  LeafletMap.prototype = Object.create(JsonMap.prototype);
+  
+  LeafletMap.prototype.constructor = LeafletMap; // prepare for own constructor
+  
+  LeafletMap.prototype.fitScreen = function(screenWidth, screenHeight) {
+    this.screenObjects = [];
+    this.latlon2Points(); 
+  };
+  
+  LeafletMap.prototype.screenToMap = function(px, py) {
+    px = px - _self.offsetX;
+    py = py - _self.offsetY;
+    var pt = this.Lmap.layerPointToLatLng(new this.LL.point(px,py));
+    return [pt.lng, pt.lat];
+  };
+  
+  LeafletMap.prototype.mapToScreen = function(x, y) {
+    var pt = this.Lmap.latLngToLayerPoint(new this.LL.LatLng(y,x));
+    return [pt.x + _self.offsetX, pt.y + _self.offsetY];
+  };
+  //////////////////////////////////////////////////////////////
   // GeoVizMap
   //////////////////////////////////////////////////////////////
-  var GeoVizMap = function(map, mapcanvas, color_theme, id_category, extent) {
+  var GeoVizMap = function(map, mapcanvas, params) {
+    this.color_theme = params ? params["color_theme"] : undefined;
+    this.hratio = params ? params["hratio"] : 0.8;
+    this.vratio = params ? params["vratio"] : 0.8;
+    if (!this.hratio) this.hratio = 0.8;
+    if (!this.vratio) this.vratio = 0.8;
     // private members
     this.HLT_BRD_CLR = "#CCC";
     this.HLT_CLR = "yellow";
     this.STROKE_CLR = "#CCC";
     this.FILL_CLR = "green";
     this.LINE_WIDTH = 1;
+    this.ALPHA = params ? params['alpha'] : 1;
+    if (!this.ALPHA) this.ALPHA = 1;
   
     this.mapcanvas = mapcanvas instanceof jQuery ? mapcanvas[0] : mapcanvas;
-    this.mapcanvas.width = this.mapcanvas.parentNode.clientWidth * 0.8;
-    this.mapcanvas.height = this.mapcanvas.parentNode.clientHeight * 0.8;
+    this.mapcanvas.width = this.mapcanvas.parentNode.clientWidth * this.hratio;
+    this.mapcanvas.height = this.mapcanvas.parentNode.clientHeight * this.vratio;
     
     this.map = map;
     this.shpType = this.map.shpType; 
     
-    this.color_theme = color_theme;
-    this.id_category = id_category;
     
     _self = this;
     
@@ -332,11 +390,16 @@
     this.isMouseMove = false;
     this.isKeyDown = false;
     
+    this.offsetX = 0;
+    this.offsetY = 0;
+    
     this.mapcanvas.addEventListener('mousemove', this.OnMouseMove, false);
     this.mapcanvas.addEventListener('mousedown', this.OnMouseDown, false);
     this.mapcanvas.addEventListener('mouseup', this.OnMouseUp, false);
     this.mapcanvas.addEventListener('keydown', this.OnKeyDown, true);
-    window.addEventListener('keypress', this.OnKeyDown, true);
+    this.mapcanvas.addEventListener('keyup', this.OnKeyUp, true);
+    window.addEventListener('keydown', this.OnKeyDown, true);
+    window.addEventListener('keyup', this.OnKeyUp, true);
     window.addEventListener('resize', this.OnResize, true);
     
     // draw map on Canvas
@@ -396,10 +459,6 @@
         context.fillStyle = _self.HLT_CLR;
       }
       
-      //var screenObjs = [];
-      //for ( var i=0, n = ids.length; i < n; i++ ) {
-      //  screenObjs.push(_self.map.screenObjects[ids[i]]);
-      //}
       var screenObjs = this.map.screenObjects; 
       var colors = {};
       colors[this.HLT_CLR] =  ids;
@@ -415,22 +474,24 @@
       return context;
     },
     
-    highlightExt: function( ids, extent ) {
+    highlightExt: function( ids, extent, linking) {
       context = _self.mapcanvas.getContext("2d");
       context.imageSmoothingEnabled= false;
       context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
+      context.globalAlpha = 1;
       context.drawImage( _self.buffer, 0, 0);
+      context.globalAlpha = _self.ALPHA;
       
       if ( ids.length == 0) {
         return;
       }
       var x0 = extent[0], y0 = extent[1], x1 = extent[2], y1 = extent[3];
       var pt0 = _self.map.mapToScreen(x0, y0),
-          pt1 = _self.map.mapToScreen(x1, y1),
-          startX = pt0[0], startY = pt0[1], 
+          pt1 = _self.map.mapToScreen(x1, y1);
+      
+      var startX = pt0[0], startY = pt0[1], 
           w = pt1[0] - startX, 
           h = pt1[1] - startY;
-      console.log(pt0, pt1, startX, startY, w, h); 
           
       if (w == 0 && h == 0) 
         return;
@@ -440,6 +501,7 @@
           maxPX = Math.max( pt0[0], pt1[0]),
           minPY = Math.min( pt0[1], pt1[1]),
           maxPY = Math.max( pt0[1], pt1[1]);
+          
       for ( var i=0, n=_self.map.centroids.length; i<n; ++i) {
         var pt = _self.map.centroids[i],
             inside = false;
@@ -478,17 +540,34 @@
      
       context.clip();
       
+      context.globalAlpha = 1;
       context.drawImage( _self.hbuffer, 0, 0);
       context.restore();
       _self.highlight(hdraw, context);
       _self.drawSelect(ddraw, context);
-      /*
-      context.beginPath();
-      context.rect( startX, startY, w, h);
-      context.strokeStyle = "black";
-      context.stroke();
-      context.closePath();
-     */ 
+      
+     if (linking) {
+        context.beginPath();
+        context.rect( startX, startY, w, h);
+        context.strokeStyle = "black";
+        context.stroke();
+        context.closePath();
+        
+        // trigger to brush/link
+        var hl = {};
+        if ( localStorage["HL_IDS"] ){ 
+          hl = JSON.parse(localStorage["HL_IDS"]);
+        }
+        hl[_self.mapcanvas.id] = _self.selected;
+        localStorage["HL_IDS"] = JSON.stringify(hl);
+       
+        var hl_map = {}; 
+        if ( localStorage["HL_MAP"] ){ 
+          hl_map = JSON.parse(localStorage["HL_MAP"]);
+        }
+        hl_map[_self.mapcanvas.id] = [x0, y0, x1, y1];
+        localStorage["HL_MAP"] = JSON.stringify(hl_map);
+    }
       return true;
     },
     
@@ -505,14 +584,16 @@
             for ( var j=0, nParts=obj.length; j<nParts; j++ ) {
               ctx.moveTo(obj[j][0][0], obj[j][0][1]);
               for ( var k=1, nPoints=obj[j].length; k<nPoints; k++) {
-                var x = obj[j][k][0], y = obj[j][k][1];
+                var x = obj[j][k][0],
+                    y = obj[j][k][1];
                 ctx.lineTo(x, y);
               }
             }
           } else {
             ctx.moveTo(obj[0][0], obj[0][1]);
             for ( var k=1, nPoints=obj.length; k<nPoints; k++) {
-              var x = obj[k][0], y = obj[k][1];
+              var x = obj[k][0],
+                  y = obj[k][1];
               ctx.lineTo(x, y);
             }
           }
@@ -531,14 +612,16 @@
               for ( var j=0, nParts=obj.length; j<nParts; j++ ) {
                 ctx.moveTo(obj[j][0][0], obj[j][0][1]);
                 for ( var k=1, nPoints=obj[j].length; k<nPoints; k++) {
-                  var x = obj[j][k][0], y = obj[j][k][1];
+                  var x = obj[j][k][0],
+                      y = obj[j][k][1];
                   ctx.lineTo(x, y);
                 }
               }
             } else {
               ctx.moveTo(obj[0][0], obj[0][1]);
               for ( var k=1, nPoints=obj.length; k<nPoints; k++) {
-                var x = obj[k][0], y = obj[k][1];
+                var x = obj[k][0],
+                    y = obj[k][1];
                 ctx.lineTo(x, y);
               }
             }
@@ -624,6 +707,7 @@
     draw: function(context,  colors, fillColor, strokeColor, lineWidth) {
       context.imageSmoothingEnabled= false;
       context.lineWidth = 0.3;
+      context.globalAlpha = this.ALPHA;
       if (_self.shpType == "LineString" || _self.shpType == "Line") {
         context.strokeStyle = fillColor ? fillColor : _self.FILL_CLR;
         context.lineWidth = lineWidth ? lineWidth: _self.LINE_WIDTH;
@@ -642,6 +726,7 @@
     }, 
     
     drawSelect: function( ids, context ) {
+      context.globalAlpha = 0.6;
       var ids_dict = {};     
       for ( var i=0, n=ids.length; i<n; i++ ) {
         ids_dict[ids[i]] = 1;
@@ -671,11 +756,20 @@
         _self.drawLines( context, screenObjs, colors );
       }
     },
-    
-    // register mouse events of canvas
-    OnResize: function( e) {
-      var newWidth = _self.mapcanvas.parentNode.clientWidth * 0.8;
-      var newHeight = _self.mapcanvas.parentNode.clientHeight * 0.8;
+    clean: function() {
+      var context = _self.mapcanvas.getContext("2d");
+      context.imageSmoothingEnabled= false;
+      context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
+      return context;
+    },
+    update: function(params) {
+      if (params) {
+        if (params['alpha']) this.ALPHA = alpha;
+        this.offsetX = params['offsetX'] ? params['offsetX'] : 0;
+        this.offsetY = params['offsetY'] ? params['offsetY'] : 0;
+      }
+      var newWidth = _self.mapcanvas.parentNode.clientWidth * _self.hratio;
+      var newHeight = _self.mapcanvas.parentNode.clientHeight * _self.vratio;
       _self.mapcanvas.width = newWidth;
       _self.mapcanvas.height = newHeight;
       _self.map.fitScreen(newWidth, newHeight);
@@ -688,11 +782,23 @@
       _self.draw(_self.hbuffer.getContext("2d"), undefined, _self.HLT_CLR);
      
       _self.buffer = _self.createBuffer(_self.mapcanvas);
+    },
+    // register mouse events of canvas
+    OnResize: function( e) {
+      this.update();
       console.log("OnResize");
     },
     OnKeyDown: function( e ) {
       if ( e.keyCode == 115 ) {
         _self.isKeyDown = true;
+      } else if ( e.keyCode = 77 ) {
+        _self.mapcanvas.style.pointerEvents= 'none';  
+      }
+    },
+    OnKeyUp: function( e ) {
+      if ( e.keyCode = 77 ) {
+        _self.mapcanvas;  
+        _self.mapcanvas.style.pointerEvents= 'auto';  
       }
     },
     OnMouseDown: function( evt ) {
@@ -712,10 +818,12 @@
         console.log("cancel brushing");
         var context = _self.mapcanvas.getContext("2d");
         context.imageSmoothingEnabled= false;
+        context.globalAlpha = 1;
         context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
         context.drawImage( _self.buffer, 0, 0);
         _self.brushRect = undefined;
         _self.isBrushing = false;
+        context.globalAlpha = this.ALPHA;
       }
     },
     OnMouseMove: function(evt) {
@@ -743,89 +851,12 @@
         } else {
           pt1 = _self.map.screenToMap(x,y);
         } 
-        
+       
         var x0 = pt0[0] <= pt1[0] ? pt0[0] : pt1[0];
         var x1 = pt0[0] > pt1[0] ? pt0[0] : pt1[0];
         var y0 = pt0[1] <= pt1[1] ? pt0[1] : pt1[1];
         var y1 = pt0[1] > pt1[1] ? pt0[1] : pt1[1];
-        var hdraw= [];
-        var ddraw = []; 
-        if ( x == _self.startX && y == _self.startY ) {
-        } else {
-          var minPX = Math.min( pt0[0], pt1[0]),
-              maxPX = Math.max( pt0[0], pt1[0]),
-              minPY = Math.min( pt0[1], pt1[1]),
-              maxPY = Math.max( pt0[1], pt1[1]);
-          _self.selected = [];
-          for ( var i=0, n=_self.map.centroids.length; i<n; ++i) {
-            var pt = _self.map.centroids[i],
-                inside = false;
-            if ( pt[0] >= minPX && pt[0] <= maxPX && 
-                 pt[1] >= minPY && pt[1] <= maxPY) {
-              _self.selected.push(i);
-              inside = true;
-            }
-            // fine polygons on border of rect
-            var bx = _self.map.bbox[i]; 
-            if (bx[0] > x1 || bx[1] < x0 || bx[2] > y1 || bx[3] < y0) {
-            } else if (x0 < bx[0] && bx[1] < x1 && y0 < bx[2] && bx[3] < y1) {
-            } else {
-              if (inside) {
-                // draw it with highligh
-                hdraw.push(i);
-              } else {
-                // draw it with default
-                ddraw.push(i);
-              }
-            }
-          }
-          context = _self.mapcanvas.getContext("2d");
-          context.imageSmoothingEnabled= false;
-          context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
-          context.drawImage( _self.buffer, 0, 0);
-          
-          context.save();
-          // draw a selection box
-          context.beginPath();
-          if ( _self.isBrushing == true ) {
-            context.rect(startX, startY, 
-                         _self.brushRect.GetW(), _self.brushRect.GetH());
-          } else {
-            var w = x - startX, 
-                h = y - startY;
-            context.rect( startX, startY, w, h);
-          }
-          context.closePath();
-         
-          context.clip();
-          
-          context.drawImage( _self.hbuffer, 0, 0);
-          context.restore();
-          _self.highlight(hdraw, context);
-          _self.drawSelect(ddraw, context);
-          console.log(hdraw, ddraw);
-          
-          context.beginPath();
-          context.rect( startX, startY, w, h);
-          context.strokeStyle = "black";
-          context.stroke();
-          context.closePath();
-          
-          // trigger to brush/link
-          var hl = {};
-          if ( localStorage["HL_IDS"] ){ 
-            hl = JSON.parse(localStorage["HL_IDS"]);
-          }
-          hl[_self.mapcanvas.id] = _self.selected;
-          localStorage["HL_IDS"] = JSON.stringify(hl);
-         
-          var hl_map = {}; 
-          if ( localStorage["HL_MAP"] ){ 
-            hl_map = JSON.parse(localStorage["HL_MAP"]);
-          }
-          hl_map[_self.mapcanvas.id] = [x0, y0, x1, y1];
-          localStorage["HL_MAP"] = JSON.stringify(hl_map);
-        }
+        _self.highlightExt([1], [x0, y0, x1, y1], true);
       }
     },
     OnMouseUp: function(evt) {
@@ -873,5 +904,6 @@
   
   window["ShpMap"] = ShpMap;
   window["JsonMap"] = JsonMap;
+  window["LeafletMap"] = LeafletMap;
   window["GeoVizMap"] = GeoVizMap;
 })(self);
