@@ -745,6 +745,19 @@ def cartodb_show_lisa_map(poly_table, lisa_table, point_tbl=None, show_points=Fa
     else:
         cartodb_show_maps([lisa_table],['poly'], cartocsses, cartosqls) 
    
+def cartodb_table_exists(tbl_name):
+    # add new column
+    
+    sql = 'SELECT count(*) FROM %s' % (tbl_name)
+    url = 'https://%s.cartodb.com/api/v1/sql' % CARTODB_DOMAIN
+    params = {
+        'api_key': CARTODB_API_KEY,
+        'q': sql,
+    }
+    req = urllib2.Request(url, urllib.urlencode(params))
+    response = urllib2.urlopen(req)
+    content = response.read()
+    
 def zipshapefiles(shp):
     uuid = getuuid(shp)
     shpPath = shp.dataPath
@@ -835,19 +848,21 @@ def cartodb_count_pts_in_polys(poly_tbl, pt_tbl, count_col_name):
 if __name__ == '__main__':
     setup()
     
-    shp_path = "/Users/xun/Desktop/data/sfpd_plots.shp"
+    shp_path = "/data/sfpd_plots.shp"
     shp = pysal.open(shp_path)
     dbf = pysal.open(shp_path[:-3]+"dbf") 
    
     show_map(shp, dbf) 
     
-    shp_path = "/Users/xun/Desktop/data/sf_cartheft.shp"
+    shp_path = "/data/sf_cartheft.shp"
     crime_shp = pysal.open(shp_path)
     crime_dbf = pysal.open(shp_path[:-3]+"dbf")
 
     show_map(crime_shp, crime_dbf)
     
     setup_cartodb("340808e9a453af9680684a65990eb4eb706e9b56","lixun910")
+    cartodb_table_exists("table_dc940397c3248a90713acf306e2a9a82")
+    
     plot_table = cartodb_upload(shp)
     crime_table = cartodb_upload(crime_shp)
     #plot_table = "table_2785f0b47a939d170b0430c5828e5e0c"
