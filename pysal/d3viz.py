@@ -18,7 +18,28 @@ WS_SERVER = "ws://localhost:9000"
 R_SHP_DICT = {}
 
 
-CARTO_CSS_POINT = '#layer {first/marker-fill: #0011cc; first/marker-opacity: 0.02; first/marker-width: 60; first/marker-line-width: 0; first/marker-placement: point; first/marker-allow-overlap: true; first/marker-comp-op: lighten; second/marker-fill: #00cc11; second/marker-opacity: 0.05; second/marker-width:50; second/marker-line-width: 0; second/marker-placement: point; second/marker-allow-overlap: true; second/marker-comp-op: lighten ; third/marker-fill: #00ff00; third/marker-opacity: 0.1; third/marker-width:20; third/marker-line-width: 0; third/marker-placement: point; third/marker-allow-overlap: true; third/marker-comp-op: lighten;}' 
+CARTO_CSS_POINT_CLOUD = ('#layer {'
+                   'first/marker-fill: #0011cc;'
+                   'first/marker-opacity: 0.02; '
+                   'first/marker-width: 60; '
+                   'first/marker-line-width: 0; '
+                   'first/marker-placement: point; '
+                   'first/marker-allow-overlap: true; '
+                   'first/marker-comp-op: lighten; '
+                   'second/marker-fill: #00cc11; '
+                   'second/marker-opacity: 0.05; '
+                   'second/marker-width:50; '
+                   'second/marker-line-width: 0; '
+                   'second/marker-placement: point; '
+                   'second/marker-allow-overlap: true; '
+                   'second/marker-comp-op: lighten; '
+                   'third/marker-fill: #00ff00; '
+                   'third/marker-opacity: 0.1; '
+                   'third/marker-width:20; '
+                   'third/marker-line-width: 0; '
+                   'third/marker-placement: point; '
+                   'third/marker-allow-overlap: true; '
+                   'third/marker-comp-op: lighten;}' )
     
 class AnswerMachine(threading.Thread):
     """
@@ -535,37 +556,6 @@ def scatter_plot_matrix(shp, fields):
     #print "send:", str_msg
     ws.close()
     
-def test():
-    # Test
-    shp = pysal.open(pysal.examples.get_path('NAT.shp'),'r')
-    dbf = pysal.open(pysal.examples.get_path('NAT.dbf'),'r')
-    
-    show_map(shp)
-    
-    ids = get_selected(shp)
-    print ids
-    
-    w = pysal.rook_from_shapefile(pysal.examples.get_path('NAT.shp'))
-    moran_scatter_plot(shp, dbf, "HR90", w)
-    
-    scatter_plot(shp, ["HR90", "PS90"])
-    scatter_plot_matrix(shp, ["HR90", "PS90"])
-    
-    quantile_map(shp, dbf, "HC60", 5, basemap="leaflet_map")
-    
-    
-    select_ids = [i for i,v in enumerate(dbf.by_col["HC60"]) if v < 20.0]
-    select(shp, ids=select_ids)
-    
-    
-    quantile_map(shp, dbf, "HC60", 5)
-    
-    
-    lisa_map(shp, dbf, "HC60", w)
-    
-        
-    #show_table(shp)
-       
 def start_webportal():
     global PORTAL
     PORTAL = "portal.html"
@@ -626,27 +616,36 @@ def cartodb_get_mapid():
     response = urllib2.urlopen(req)
     content = response.read()    
     
-def cartodb_show_maps(table_names, geom_types, cartocsses=None, cartosqls=None):
+def cartodb_show_maps(tables):
     default_cartocss = {}
-    default_cartocss['poly'] = '#layer { polygon-fill: blue; polygon-opacity: 0.6; line-color: #CCC; }'
-    default_cartocss['point'] = '#layer { marker-fill: #FF6600; marker-opacity: 1; marker-width: 6; marker-line-color: white; marker-line-width: 1; marker-line-opacity: 0.9; marker-placement: point; marker-type: ellipse; marker-allow-overlap: true;}'
-    
+    default_cartocss['poly'] = ('#layer {'
+        'polygon-fill: green; '
+        'polygon-opacity: 0.8; '
+        'line-color: #CCC; }')
+    default_cartocss['point'] = ('#layer { '
+         'marker-fill: #FF6600; marker-opacity: 1; marker-width: 6;'
+         'marker-line-color: white; marker-line-width: 1; '
+         'marker-line-opacity: 0.9; marker-placement: point; '
+         'marker-type: ellipse; marker-allow-overlap: true;}')
     sublayers = []
-    # show default cartodb maps. Select * from table
-    for i, tbl in enumerate(table_names):
-        sublayer = {}
-        sublayer['sql'] = cartosqls[i] if cartosqls and cartosqls[i]\
-            else 'select * from %s' % tbl 
-        sublayer['cartocss'] = cartocsses[i] if cartocsses and cartocsses[i]\
-            else default_cartocss[geom_types[i]]
-        sublayer["interactivity"]= "cartodb_id"
+    for table in tables:
+        name = table["name"] 
+        sql = 'SELECT * FROM %s' % name
+        if 'sql' in table:
+            sql = table['sql']
+        geotype = table["type"]
+        css = default_cartocss[geotype]
+        if 'css' in table:
+            css = table['css']
+        sublayer = {'sql':sql, 'cartocss': css, 'interactivity':'cartodb_id'}
         sublayers.append(sublayer)
-   
+    uuid = tables[0]["name"].split("_")[-1]
+    
     global WS_SERVER 
     ws = create_connection(WS_SERVER)
     msg = {
         "command": "cartodb_mymap",
-        "uuid": table_names[0].split('_')[-1],
+        "uuid": uuid,
         "sublayers": json.dumps(sublayers),
     }
     str_msg = json.dumps(msg)
@@ -745,18 +744,23 @@ def cartodb_show_lisa_map(poly_table, lisa_table, point_tbl=None, show_points=Fa
     else:
         cartodb_show_maps([lisa_table],['poly'], cartocsses, cartosqls) 
    
-def cartodb_table_exists(tbl_name):
-    # add new column
-    
-    sql = 'SELECT count(*) FROM %s' % (tbl_name)
-    url = 'https://%s.cartodb.com/api/v1/sql' % CARTODB_DOMAIN
-    params = {
-        'api_key': CARTODB_API_KEY,
-        'q': sql,
-    }
-    req = urllib2.Request(url, urllib.urlencode(params))
-    response = urllib2.urlopen(req)
-    content = response.read()
+def cartodb_table_exists(shp):
+    import requests
+    uuid = getuuid(shp)
+    table_names = [uuid, "table_" + uuid]
+    for tbl_name  in table_names:
+        sql = 'SELECT count(cartodb_id) FROM %s' % (tbl_name)
+        url = 'https://%s.cartodb.com/api/v1/sql' % CARTODB_DOMAIN
+        params = {
+            'api_key': CARTODB_API_KEY,
+            'q': sql,
+        }
+        r = requests.get(url, params=params, verify=False)
+        content = r.json()    
+        if "error" not in content:
+            print "table %s existed" % tbl_name
+            return tbl_name
+    return None
     
 def zipshapefiles(shp):
     uuid = getuuid(shp)
@@ -786,9 +790,11 @@ def zipshapefiles(shp):
     return ziploc
         
 def cartodb_upload(shp):
-    ziploc = zipshapefiles(shp) 
+    tbl_name = cartodb_table_exists(shp)
+    if tbl_name: return tbl_name
     
     import requests
+    ziploc = zipshapefiles(shp) 
     import_url = "https://%s.cartodb.com/api/v1/imports/?api_key=%s" % (CARTODB_DOMAIN, CARTODB_API_KEY)
     r = requests.post(import_url, files={'file': open(ziploc, 'rb')}, verify=False)
     data = r.json()
@@ -812,13 +818,9 @@ def cartodb_upload(shp):
                 print 'Table "%s" created' % d['table_name']
         if d['state']=='failure':
             print d['get_error_text']['what_about']
-            
     return d['table_name']    
     
-    
 def cartodb_count_pts_in_polys(poly_tbl, pt_tbl, count_col_name):
-    # add new column
-    
     sql = 'ALTER TABLE %s ADD COLUMN %s integer' % (poly_tbl, count_col_name)
     url = 'https://%s.cartodb.com/api/v1/sql' % CARTODB_DOMAIN
     params = {
@@ -843,8 +845,6 @@ def cartodb_count_pts_in_polys(poly_tbl, pt_tbl, count_col_name):
     response = urllib2.urlopen(req)
     content = response.read()
     
-    pass
-
 if __name__ == '__main__':
     setup()
     
@@ -861,16 +861,23 @@ if __name__ == '__main__':
     show_map(crime_shp, crime_dbf)
     
     setup_cartodb("340808e9a453af9680684a65990eb4eb706e9b56","lixun910")
-    cartodb_table_exists("table_dc940397c3248a90713acf306e2a9a82")
     
     plot_table = cartodb_upload(shp)
     crime_table = cartodb_upload(crime_shp)
-    #plot_table = "table_2785f0b47a939d170b0430c5828e5e0c"
-    #crime_table = "dce2e9491fd3e2c948719ac455413721"
-    # show polygon + point map in CartoDB.js 
-    cartodb_show_maps([plot_table, crime_table],['poly','point']) 
     
-    new_var_name = "mycnt" 
+    cartodb_show_maps([
+        {'name':plot_table, 'type':'poly'}, 
+        {'name':crime_table, 'type':'point'}, 
+    ])
+    
+    cartodb_show_maps([
+        {'name':plot_table, 'type':'poly'}, 
+        {'name':crime_table, 'type':'point','css': CARTO_CSS_POINT_CLOUD}, 
+    ])
+    
+    count_col_name = "crime_cnt" 
+    #counting points in polygon and save results to a new col in polygon table
+    cartodb_count_pts_in_polys(plot_table, crime_table, count_col_name)
     """ 
     poly_tbl ="sfpd_plots"
     point_tbl = "sf_cartheft"
@@ -879,7 +886,7 @@ if __name__ == '__main__':
     # show polygon + point map in CartoDB.js 
     #cartodb_show_maps([poly_tbl, point_tbl],['poly','point']) 
     
-    cartodb_show_maps([point_tbl,point_tbl],['point','poly'], [CARTO_CSS_POINT,None]) 
+    cartodb_show_maps([point_tbl,point_tbl],['point','poly'], [CARTO_CSS_POINT_CLOUD,None]) 
     
     #counting points in polygon
     #cartodb_count_pts_in_polys("sfpd_plots","sf_cartheft","mycnt")
