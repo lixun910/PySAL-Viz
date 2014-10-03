@@ -23,9 +23,28 @@ html, body, #map {
 <script src="js/utils.js"></script>
 <script>
 
-var map;
+var map, mapDict= {};
 $(document).ready(function() {
 
+  //////////////////////////////////////////////////////////////
+  // Local Storage Brushing/Linking
+  //////////////////////////////////////////////////////////////
+  
+  $(window).bind('storage', function(e) {
+    var hl_ids = JSON.parse(localStorage.getItem('HL_IDS')),
+        hl_ext = JSON.parse(localStorage.getItem('HL_MAP'));
+    for ( var uuid in hl_ids ) {
+      if ( uuid in mapDict ) {
+        var map = mapDict[uuid];
+        var ids = hl_ids[uuid];
+        console.log("highlight", ids);
+        if ( uuid in hl_ext ) {
+          map.highlight(ids);
+        }
+      }
+    }
+  });
+  
   //////////////////////////////////////////////////////////////
   // Create Theme/Themeless Maps
   //////////////////////////////////////////////////////////////
@@ -42,28 +61,32 @@ $(document).ready(function() {
   });
 
   L.tileLayer('http://tile.stamen.com/toner/{z}/{x}/{y}.png', {
-        attribution: 'Mapbox <a href="http://mapbox.com/about/maps" target="_blank">Terms &amp; Feedback</a>'
+    attribution: 'Mapbox <a href="http://mapbox.com/about/maps" target="_blank">Terms &amp; Feedback</a>'
   }).addTo(map);
 
   cartodb.createLayer(map, {
-          user_name: 'lixun910',
-          type: 'cartodb',
-          /*sublayers: [{
-             sql: 'select a.the_geom_webmercator,a.cartodb_id,b.lisa from nat as a, hr60_lisa as b where a.cartodb_id=b.cartodb_id',
-             cartocss: '#layer { polygon-fill: #F00; polygon-opacity: 0.3; line-color: #F00; } #layer[lisa="1"]{polygon-fill:blue;}',
-             interactivity: 'cartodb_id'
-          }]*/
-          sublayers: sublayers
-        })
-    .addTo(map)
-    .on('done', function(layer) {
-      //cdb.vis.Vis.addInfowindow(map, layer.getSubLayer(0), ['lisa'])
-    })
-    .on('error', function() {
-    }
+    user_name: 'lixun910',
+    type: 'cartodb',
+    /*sublayers: [{
+       sql: "SELECT a.the_geom_webmercator,a.cartodb_id,b.lisa FROM dc940397c3248a90713acf306e2a9a82 AS a, cartheft_lisa AS b WHERE a.cartodb_id=b.cartodb_id",
+       cartocss: '#layer { polygon-fill: #F00; polygon-opacity: 0.3; line-color: #F00; } #layer[lisa="1"]{polygon-fill:blue;}',
+       interactivity: 'cartodb_id'
+    }, {
+       sql: "SELECT * FROM dc940397c3248a90713acf306e2a9a82",
+       cartocss: '#layer {polygon-opacity: 0;}',
+       interactivity: 'cartodb_id'
+    }]*/
+    sublayers: sublayers
+  })
+  .addTo(map)
+  .on('done', function(layer) {
+    //cdb.vis.Vis.addInfowindow(map, layer.getSubLayer(0), ['lisa'])
+  })
+  .on('error', function() {}
   );
-    
-  mymap = new GeoVizMap(new LeafletMap(data, L, map), $('#foreground'), {
+   
+  var foreground = $('#foreground').attr("id", uuid); 
+  mymap = new GeoVizMap(new LeafletMap(data, L, map), foreground, {
     "hratio": 1,
     "vratio": 1,
     "alpha": 0.6,
@@ -86,6 +109,8 @@ $(document).ready(function() {
     var offsetY = -np.y + op.y;
     mymap.update({"offsetX":offsetX, "offsetY":offsetY});
   });
+  
+  mapDict[uuid] = mymap;
 });
 </script>
 </head>

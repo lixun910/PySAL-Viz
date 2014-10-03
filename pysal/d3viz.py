@@ -41,6 +41,17 @@ CARTO_CSS_POINT_CLOUD = ('#layer {'
                    'third/marker-allow-overlap: true; '
                    'third/marker-comp-op: lighten;}' )
     
+CARTO_CSS_INVISIBLE = '#layer {polygon-opacity: 0;}'
+                  
+CARTO_CSS_LISA = ('#layer { '
+                  'polygon-fill: #FFF; '
+                  'polygon-opacity: 0.5; '
+                  'line-color: #CCC; } '
+                  '#layer[lisa="1"]{polygon-fill: red;}'
+                  '#layer[lisa="2"]{polygon-fill: lightsalmon;}'
+                  '#layer[lisa="3"]{polygon-fill: blue;}'
+                  '#layer[lisa="4"]{polygon-fill: lightblue;}')
+    
 class AnswerMachine(threading.Thread):
     """
     Handle commands sent from Web Pages
@@ -653,68 +664,52 @@ def cartodb_show_maps(tables):
     #print "send:", str_msg
     ws.close()
  
-def cartodb_create_map():
-    mapconfig = {
-        "version": "0.0.1",
-          "name": "mytest1",
-          "auth": {
-            "method": "open"
-          },
-          "layergroup": {
-            "layers": [{
-              "type": "cartodb",
-              "options": {
-                "cartocss_version": "2.1.1",
-                "cartocss": "#layer { polygon-fill: #FFF; }",
-                "sql": "select * from table_80f6b361d3143cee5a50ed3e27b07848"
-              }
-            }]
-          }        
-    }
-    url = 'https://%s.cartodb.com/api/v1/map/named?api_key=%s' % \
-        (CARTODB_DOMAIN, CARTODB_API_KEY)
-    
-    #opener = urllib2.build_opener()
-    #req = urllib2.Request(url, data=json.dumps(mapconfig),
-    #      headers={'Content-Type': 'application/json'})
-    response = urllib2.urlopen(url, json.dumps(mapconfig))
-    #response = opener.open(req)    
-    content = response.read()
-    
-def cartodb_lisa_map(shp, dbf, var, w, poly_table, lisa_table_name):
+def cartodb_lisa(shp, dbf, w, var, poly_table, lisa_table):
     import StringIO
     y = dbf.by_col[var]
     lm = pysal.Moran_Local(np.array(y), w)
     lisa = lm.q
-    
     for i,v in enumerate(lm.p_sim):
         if lm.p_sim[i] >= 0.05:
             lisa[i] = 0
     loc = os.path.realpath(__file__)    
     loc = loc[0:loc.rindex('/')]
     loc = loc[0:loc.rindex('/')] + "/www/tmp/"        
-    csv_loc = loc + lisa_table_name + ".csv" 
+    csv_loc = loc + lisa_table + ".csv" 
     csv = open(csv_loc, "w")
     csv.write("cartodb_id, lisa\n")
     for i,v in enumerate(lisa):
         csv.write("%s,%s\n" % (i, v))
     csv.close()
-  
+    # create zip file for uploading
     zp_loc =  loc + "upload.zip"
     zp = zipfile.ZipFile(zp_loc,"w")
     zp.write(csv_loc)
     zp.close()
 
     import requests
-    import_url = "https://%s.cartodb.com/api/v1/imports/?api_key=%s" % (CARTODB_DOMAIN, CARTODB_API_KEY)
+    # delete existing lisa_table 
+    sql = 'DROP TABLE %s' % (lisa_table)
+    url = 'https://%s.cartodb.com/api/v1/sql' % CARTODB_DOMAIN
+    params = {
+        'api_key': CARTODB_API_KEY,
+        'q': sql,
+    }
+    r = requests.get(url, params=params, verify=False)
+    content = r.json()    
+    
+    # upload lisa_table : none-geometry table
+    import_url = "https://%s.cartodb.com/api/v1/imports/?api_key=%s" % \
+        (CARTODB_DOMAIN, CARTODB_API_KEY)
     r = requests.post(import_url, files={'file':open(zp_loc, 'rb')}, verify=False)
     data = r.json()
     
     complete = False
     last_state = ''
     while not complete: 
-        import_status_url = "https://%s.cartodb.com/api/v1/imports/%s?api_key=%s" % (CARTODB_DOMAIN, data['item_queue_id'], CARTODB_API_KEY)
-        req = urllib2.Request(import_status_url)
+        import_url = "https://%s.cartodb.com/api/v1/imports/%s?api_key=%s" %\
+            (CARTODB_DOMAIN, data['item_queue_id'], CARTODB_API_KEY)
+        req = urllib2.Request(import_url)
         response = urllib2.urlopen(req)
         d = json.loads(str(response.read()))
         if last_state!=d['state']:
@@ -728,21 +723,19 @@ def cartodb_lisa_map(shp, dbf, var, w, poly_table, lisa_table_name):
                 print 'Table "%s" created' % d['table_name']
         if d['state']=='failure':
             print d['get_error_text']['what_about']
+    return d['table_name']
             
-    lisa_table = d['table_name']
-    cartodb_show_lisa_map(poly_table, lisa_table)
+def cartodb_show_lisa_map(base_table, lisa_table, layers=[]):
+    lisa_sql = 'SELECT a.the_geom_webmercator,a.cartodb_id,b.lisa FROM %s AS a, %s AS b WHERE a.cartodb_id=b.cartodb_id' % (base_table, lisa_table)
     
-def cartodb_show_lisa_map(poly_table, lisa_table, point_tbl=None, show_points=False):
-    lisa_color = ['#fff','darkred','lightsalmon','darkblue','lightblue']
-    lisa_sql = 'select a.the_geom_webmercator,a.cartodb_id,b.lisa from %s as a, %s as b where a.cartodb_id=b.cartodb_id' % (poly_table, lisa_table)
-    lisa_css= '#layer { polygon-fill: #FFF; polygon-opacity: 0.5; line-color: #CCC; } #layer[lisa="1"]{polygon-fill: red;} #layer[lisa="2"]{polygon-fill: lightsalmon;} #layer[lisa="3"]{polygon-fill: blue;} #layer[lisa="4"]{polygon-fill: lightblue;}'
+    tables = [
+        {'name':base_table, 'type':'poly', 'css': CARTO_CSS_INVISIBLE},
+        {'name':lisa_table, 'type':'poly', 'css': CARTO_CSS_LISA, 'sql': lisa_sql}
+    ]
+    tables += layers
     
-    cartocsses = [lisa_css, CARTO_CSS_POINT] if point_tbl else [lisa_css]
-    cartosqls = [lisa_sql,None] if point_tbl else [lisa_sql]
-    if point_tbl:
-        cartodb_show_maps([lisa_table,point_tbl],['poly', 'point'], cartocsses, cartosqls) 
-    else:
-        cartodb_show_maps([lisa_table],['poly'], cartocsses, cartosqls) 
+    cartodb_show_maps(tables)
+    
    
 def cartodb_table_exists(shp):
     import requests
@@ -821,21 +814,33 @@ def cartodb_upload(shp):
     return d['table_name']    
     
 def cartodb_count_pts_in_polys(poly_tbl, pt_tbl, count_col_name):
-    sql = 'ALTER TABLE %s ADD COLUMN %s integer' % (poly_tbl, count_col_name)
+    import requests
+    sql = 'SELECT count(%s) FROM %s' % (count_col_name, poly_tbl)
     url = 'https://%s.cartodb.com/api/v1/sql' % CARTODB_DOMAIN
     params = {
         'api_key': CARTODB_API_KEY,
         'q': sql,
     }
-    req = urllib2.Request(url, urllib.urlencode(params))
-    response = urllib2.urlopen(req)
-    content = response.read()
+    r = requests.get(url, params=params, verify=False)
+    content = r.json()    
+    if "error" in content:
+        print "column not existed, adding %s..." % count_col_name
+        sql = 'ALTER TABLE %s ADD COLUMN %s integer' % (poly_tbl, count_col_name)
+        url = 'https://%s.cartodb.com/api/v1/sql' % CARTODB_DOMAIN
+        params = {
+            'api_key': CARTODB_API_KEY,
+            'q': sql,
+        }
+        req = urllib2.Request(url, urllib.urlencode(params))
+        response = urllib2.urlopen(req)
+        content = response.read()
     # call sql api to update
     """
     UPDATE polygon_table SET point_count = (SELECT count(*)
     FROM points_table WHERE ST_Intersects(points_table.the_geom, polygon_table.the_geom))    
     """
-    sql = 'UPDATE %s SET %s = (SELECT count(*) FROM %s WHERE ST_Intersects(%s.the_geom, %s.the_geom))' % (poly_tbl, count_col_name, pt_tbl, pt_tbl, poly_tbl)
+    sql = 'UPDATE %s SET %s = (SELECT count(*) FROM %s WHERE ST_Intersects(%s.the_geom, %s.the_geom))' % \
+        (poly_tbl, count_col_name, pt_tbl, pt_tbl, poly_tbl)
     url = 'https://%s.cartodb.com/api/v1/sql' % CARTODB_DOMAIN
     params = {
         'api_key': CARTODB_API_KEY,
@@ -878,41 +883,25 @@ if __name__ == '__main__':
     count_col_name = "crime_cnt" 
     #counting points in polygon and save results to a new col in polygon table
     cartodb_count_pts_in_polys(plot_table, crime_table, count_col_name)
-    """ 
-    poly_tbl ="sfpd_plots"
-    point_tbl = "sf_cartheft"
-    #upload polygon shapefile
-    #upload point shapefile
-    # show polygon + point map in CartoDB.js 
-    #cartodb_show_maps([poly_tbl, point_tbl],['poly','point']) 
-    
-    cartodb_show_maps([point_tbl,point_tbl],['point','poly'], [CARTO_CSS_POINT_CLOUD,None]) 
-    
-    #counting points in polygon
-    #cartodb_count_pts_in_polys("sfpd_plots","sf_cartheft","mycnt")
     
     # download data for LISA 
-    shp_path = cartodb_get_data(poly_tbl, [var_name])
-    shp = pysal.open(shp_path)
-    dbf = pysal.open(shp_path[:-3]+"dbf") 
-     
-    # running LISA
-    shp = pysal.open(shp_path)
-    dbf = pysal.open(shp_path[:-3]+"dbf") 
+    shp_path = cartodb_get_data(plot_table, [count_col_name])
+   
+    # run LISA 
+    count_shp = pysal.open(shp_path)
+    count_dbf = pysal.open(shp_path[:-3]+"dbf") 
     w = pysal.rook_from_shapefile(shp_path)
-    new_lisa_table_name = "cartheft_lisa" 
-    #cartodb_lisa_map(shp, dbf, var_name, w, poly_tbl, new_lisa_table_name)
-    cartodb_show_lisa_map(poly_tbl, new_lisa_table_name, show_points=False)
-    cartodb_show_lisa_map(poly_tbl, new_lisa_table_name, show_points=True)
-       
-    # show LISA map in CartoDB.js
-    # show LISA map + point intensity map in CartoDB.js
+   
+    LISA_table = "cartheft_lisa" 
+    LISA_table = cartodb_lisa(\
+        count_shp, count_dbf, w, count_col_name, plot_table, LISA_table)
     
+    cartodb_show_lisa_map(plot_table, LISA_table)
     
-    #cartodb_get_mapid()
-    #cartodb_create_map()    
-    
-    
-    #show_map(shp)
-    #start_answermachine()
-    """
+    # add more layers
+    cartodb_show_lisa_map(plot_table, LISA_table, layers=[
+        {'name':crime_table, 'type':'point'}, 
+    ])
+    cartodb_show_lisa_map(plot_table, LISA_table, layers=[
+        {'name':crime_table, 'type':'point','css': CARTO_CSS_POINT_CLOUD}, 
+    ])

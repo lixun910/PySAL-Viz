@@ -524,7 +524,8 @@
           
       if (w == 0 && h == 0) 
         return;
-     
+    
+      _self.selected = []; 
       var hdraw = [], ddraw = []; 
       var minPX = Math.min( pt0[0], pt1[0]),
           maxPX = Math.max( pt0[0], pt1[0]),
@@ -534,8 +535,9 @@
       for ( var i=0, n=_self.map.centroids.length; i<n; ++i) {
         var pt = _self.map.centroids[i],
             inside = false;
-        if ( pt[0] >= minPX && pt[0] <= maxPX && 
-             pt[1] >= minPY && pt[1] <= maxPY) {
+        if ( pt[0] >= x0 && pt[0] <= x1 && 
+             pt[1] >= y0 && pt[1] <= y1 ) {
+          _self.selected.push(i);
           inside = true;
         }
         // fine polygons on border of rect
@@ -557,27 +559,28 @@
       }
       
       context.save();
-      // draw a selection box
       context.beginPath();
       if ( _self.isBrushing == true ) {
-        context.rect(startX, startY, 
-                     _self.brushRect.GetW(), _self.brushRect.GetH());
+        context.rect(startX, startY, _self.brushRect.GetW(), _self.brushRect.GetH());
       } else {
         context.rect( startX, startY, w, h);
       }
       context.closePath();
-     
       context.clip();
-      
       context.globalAlpha = 1;
       context.drawImage( _self.hbuffer, 0, 0);
       context.restore();
       _self.highlight(hdraw, context);
-      _self.drawSelect(ddraw, context);
+      if (_self.noForeground) {
+        _self.drawSelect(ddraw, context,"invisible");
+      } else {
+        _self.drawSelect(ddraw, context);
+      }
       
      if (linking) {
         context.beginPath();
         context.rect( startX, startY, w, h);
+        context.fillStyle = "rgba(255,255,255,0)";
         context.strokeStyle = "black";
         context.stroke();
         context.closePath();
@@ -772,7 +775,7 @@
       }
     }, 
     
-    drawSelect: function( ids, context ) {
+    drawSelect: function( ids, context, invisible) {
       context.globalAlpha = 0.6;
       var ids_dict = {};     
       for ( var i=0, n=ids.length; i<n; i++ ) {
@@ -794,6 +797,10 @@
         }
       } else {
         colors[_self.FILL_CLR] = ids;
+      }
+      if (invisible) {
+        colors = {};
+        colors["rgba(255,255,255,0.2)"] = ids;
       }
       if (_self.shpType == "Polygon" || _self.shpType == "MultiPolygon") {
         _self.drawPolygons( context, screenObjs, colors);
