@@ -156,13 +156,10 @@ $(document).ready(function() {
     mymap.clean();
   });
   map.on('moveend', function(e) {
-    var a = map.getBounds();
-    console.log(a.getWest(), a.getEast(), a.getSouth(), a.getNorth());
     var op = e.target.getPixelOrigin();
     var np = e.target._getTopLeftPoint();
     var offsetX = -np.x + op.x;
     var offsetY = -np.y + op.y;
-    //mymap.pan(offsetX, offsetY);
     mymap.update({"offsetX":offsetX, "offsetY":offsetY});
   });
   // fill content of color-selector

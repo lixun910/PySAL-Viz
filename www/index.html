@@ -37,6 +37,7 @@ layerDict
     ...
   }
 */
+var map;
 var mapDict = {};
 var plotDict = {};
 var dataDict = {};
@@ -169,21 +170,19 @@ should stack the new layer as multi-layer scenario.
 */
 var add_layer = function(o){
   var uuid = o.uuid;
-  if ( "uuid" in o && $('#'+o["uuid"]).length ){
+  if ( "uuid" in o && $('canvas').length > 0 ){
     // add layer in an existing map
-    uuid = o["uuid"];
     var json_path = "./tmp/" + uuid + ".json";
-    var map = mapDict[uuid];
     
     d3.json(json_path, function(data) {
-      map.add_layer(new JsonMap(data)); 
+      map.addLayer(uuid, new JsonMap(data)); 
     });
     
   } else {
     var json_path = "./tmp/" + uuid + ".json";
     $('<canvas id="' + uuid + '"></canvas>').appendTo($('#map-container'));
     d3.json(json_path, function(data) {
-      var map = new GeoVizMap(new JsonMap(data), $('#'+uuid));
+      map = new GeoVizMap(new JsonMap(data), $('#'+uuid));
       mapDict[uuid] = map;
       dataDict[uuid] = data;
     });

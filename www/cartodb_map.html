@@ -17,6 +17,10 @@ html, body, #map {
 <link rel="stylesheet" href="http://libs.cartocdn.com/cartodb.js/v3/themes/css/cartodb.css" />
 <script src="http://libs.cartocdn.com/cartodb.js/v3/cartodb.js"></script>
 <script src="js/jquery.min.js"></script>
+<script src="js/d3.v3.min.js"></script>
+<script src="js/colorbrewer.js"></script>
+<script src="js/jmap.js"></script>
+<script src="js/utils.js"></script>
 <script>
 
 var map;
@@ -26,10 +30,10 @@ $(document).ready(function() {
   // Create Theme/Themeless Maps
   //////////////////////////////////////////////////////////////
   var msg = window.opener.tempMsg,
-      //uuid = msg.uuid,
+      uuid = msg.uuid,
       title = msg.title,
       sublayers = JSON.parse(msg.sublayers),
-      layerDict = window.opener.layerDict;
+      data = window.opener.dataDict[uuid];
   //window.opener.tempMsg = undefined;
   
   map = new L.Map('map', {
@@ -56,11 +60,39 @@ $(document).ready(function() {
       //cdb.vis.Vis.addInfowindow(map, layer.getSubLayer(0), ['lisa'])
     })
     .on('error', function() {
+    }
+  );
+    
+  mymap = new GeoVizMap(new LeafletMap(data, L, map), $('#foreground'), {
+    "hratio": 1,
+    "vratio": 1,
+    "alpha": 0.6,
     });
+
+  map.on('zoomstart', function() {
+    mymap.clean();
+  });
+  map.on('zoomend', function() {
+    mymap.update();
+  });
+  map.on('movestart', function(e) {
+    mymap.clean();
+  });
+  map.on('moveend', function(e) {
+    var op = e.target.getPixelOrigin();
+    var np = e.target._getTopLeftPoint();
+    var offsetX = -np.x + op.x;
+    var offsetY = -np.y + op.y;
+    mymap.update({"offsetX":offsetX, "offsetY":offsetY});
+  });
 });
 </script>
 </head>
 <body>
-<div id="map"></div>
+<div id="map-container" style="position: relative; align:center; border: 0px solid red;height: 100%;position: relative;">
+  <div id="map" style="align:center; margin-top:0px;border: 0px solid red;width: 800px;height:500px;">
+  </div>
+  <canvas id="foreground" style="position: absolute; top: 0; left: 0;width: 100%; height: 100%"></canvas>
+</div>
 </body>
 </html>

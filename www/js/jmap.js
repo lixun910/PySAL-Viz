@@ -180,6 +180,17 @@
               if (y < bminY) {bminY = y;}
           }
         }
+      } else if ( typeof coords[0] == 'number') {
+          x = coords[0], y = coords[1];
+          if (x > maxX) {maxX = x;}
+          if (x < minX) {minX = x;}
+          if (y > maxY) {maxY = y;}
+          if (y < minY) {minY = y;}
+          if (x > bmaxX) {bmaxX = x;}
+          if (x < bminX) {bminX = x;}
+          if (y > bmaxY) {bmaxY = y;}
+          if (y < bminY) {bminY = y;}
+      
       } else {
         for ( k=0, nPoints=coords.length; k < nPoints; k++ ) {
           x = coords[k][0], y = coords[k][1];
@@ -272,6 +283,12 @@
           }
           screenCoords.push( screenPart );
         }
+      } else if ( typeof coords[0] == 'number') {
+        var x = coords[0], y = coords[1];
+        pt = this.mapToScreen(x, y);
+        x = pt[0] | 0;
+        y = pt[1] | 0;
+        screenCoords=[x,y];
       } else {
         var x = coords[0][0], y = coords[0][1];
         pt = this.mapToScreen(x, y);
@@ -373,6 +390,7 @@
     this.mapcanvas.height = this.mapcanvas.parentNode.clientHeight * this.vratio;
     
     this.map = map;
+    this.layers = {};
     this.shpType = this.map.shpType; 
     
     
@@ -425,6 +443,12 @@
   // 
   GeoVizMap.prototype = {
     // member functions
+    addLayer : function(uuid, map) {
+      
+      this.layers[uuid] = map;
+      this.update(); 
+    },
+    
     updateColor: function(colorbrewer_obj) {
       this.color_theme  = colorbrewer_obj;
       this.draw(this.mapcanvas.getContext("2d"), this.color_theme);
@@ -723,6 +747,24 @@
       } else if (_self.shpType == "Line" || _self.shpType == "LineString") {
         _self.drawLines( context, _self.map.screenObjects, colors) ;
       }
+      
+      for ( var uuid in _self.layers ) {
+        var subMap = _self.layers[uuid];
+        if (subMap.shpType == "LineString" || subMap.shpType == "Line") {
+          context.strokeStyle ='#'+Math.floor(Math.random()*16777215).toString(16);
+          context.lineWidth = lineWidth ? lineWidth: _self.LINE_WIDTH;
+        } else {
+          context.strokeStyle = strokeColor ? strokeColor : _self.STROKE_CLR;
+          context.fillStyle = '#'+Math.floor(Math.random()*16777215).toString(16);
+        }
+        if (subMap.shpType == "Polygon" || subMap.shpType == "MultiPolygon" ) {
+          _self.drawPolygons( context, subMap.screenObjects, colors) ;
+        } else if (subMap.shpType == "Point" || subMap.shpType == "MultiPoint") {
+          _self.drawPoints( context, subMap.screenObjects, colors) ;
+        } else if (subMap.shpType == "Line" || subMap.shpType == "LineString") {
+          _self.drawLines( context, subMap.screenObjects, colors) ;
+        }
+      }
     }, 
     
     drawSelect: function( ids, context ) {
@@ -773,6 +815,9 @@
       _self.mapcanvas.width = newWidth;
       _self.mapcanvas.height = newHeight;
       _self.map.fitScreen(newWidth, newHeight);
+      for (var uuid in _self.layers) {
+        _self.layers[uuid].fitScreen(newWidth, newHeight);
+      }
       _self.draw(_self.mapcanvas.getContext("2d"), _self.color_theme);
       
       
@@ -785,7 +830,7 @@
     },
     // register mouse events of canvas
     OnResize: function( e) {
-      this.update();
+      _self.update();
       console.log("OnResize");
     },
     OnKeyDown: function( e ) {
