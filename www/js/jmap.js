@@ -371,6 +371,8 @@
   // GeoVizMap
   //////////////////////////////////////////////////////////////
   var GeoVizMap = function(map, mapcanvas, params) {
+    this.noForeground = params ? params["noforeground"] : false;
+    if (!this.noForeground) this.noForeground = false;
     this.color_theme = params ? params["color_theme"] : undefined;
     this.hratio = params ? params["hratio"] : 0.8;
     this.vratio = params ? params["vratio"] : 0.8;
@@ -422,8 +424,9 @@
     
     // draw map on Canvas
     this.map.fitScreen(this.mapcanvas.width, this.mapcanvas.height);
-    this.draw(this.mapcanvas.getContext("2d"), this.color_theme);
-    
+    if ( !this.noForeground ) {
+      this.draw(this.mapcanvas.getContext("2d"), this.color_theme);
+    }   
     // draw highlight map on hbuffer
     this.hbuffer = document.createElement("canvas");
     this.hbuffer.width = this.mapcanvas.width;
@@ -450,9 +453,11 @@
     },
     
     updateColor: function(colorbrewer_obj) {
-      this.color_theme  = colorbrewer_obj;
-      this.draw(this.mapcanvas.getContext("2d"), this.color_theme);
-      this.buffer = this.createBuffer(this.mapcanvas);
+      if ( !this.noForeground ) {
+        this.color_theme  = colorbrewer_obj;
+        this.draw(this.mapcanvas.getContext("2d"), this.color_theme);
+        this.buffer = this.createBuffer(this.mapcanvas);
+      }
     },
     
     // create buffer canvas
@@ -818,8 +823,9 @@
       for (var uuid in _self.layers) {
         _self.layers[uuid].fitScreen(newWidth, newHeight);
       }
-      _self.draw(_self.mapcanvas.getContext("2d"), _self.color_theme);
-      
+      if ( !this.noForeground ) {
+        _self.draw(_self.mapcanvas.getContext("2d"), _self.color_theme);
+      }   
       
       _self.hbuffer = document.createElement("canvas");
       _self.hbuffer.width = _self.mapcanvas.width;
