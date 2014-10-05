@@ -18,6 +18,15 @@ WS_SERVER = "ws://localhost:9000"
 R_SHP_DICT = {}
 
 
+YLRD=  {
+    3: ["#ffeda0","#feb24c","#f03b20"],
+    4: ["#ffffb2","#fecc5c","#fd8d3c","#e31a1c"],
+    5: ["#ffffb2","#fecc5c","#fd8d3c","#f03b20","#bd0026"],
+    6: ["#ffffb2","#fed976","#feb24c","#fd8d3c","#f03b20","#bd0026"],
+    7: ["#ffffb2","#fed976","#feb24c","#fd8d3c","#fc4e2a","#e31a1c","#b10026"],
+    8: ["#ffffcc","#ffeda0","#fed976","#feb24c","#fd8d3c","#fc4e2a","#e31a1c","#b10026"],
+    9: ["#ffffcc","#ffeda0","#fed976","#feb24c","#fd8d3c","#fc4e2a","#e31a1c","#bd0026","#800026"]
+}
 CARTO_CSS_POINT_CLOUD = ('#layer {'
                    'first/marker-fill: #0011cc;'
                    'first/marker-opacity: 0.02; '
@@ -259,6 +268,10 @@ def list_shp():
     global R_SHP_DICT
     return R_SHP_DICT.keys()
 
+def get_json_path(shp):
+    uuid = getuuid(shp)
+    return R_SHP_DICT[uuid]["json"]
+    
 def get_shp(uuid):
     global R_SHP_DICT
     if uuid in R_SHP_DICT.keys():
@@ -305,10 +318,10 @@ def setup(restart=True):
         if sys.platform == 'win32':
             subprocess.Popen([sys.executable, ws_path], shell=True)
         else:
-            subprocess.Popen([script], shell=True)
+            subprocess.Popen(["python %s"%ws_path], shell=True)
         
         print "starting http server..."
-        www_path = os.path.join(base_path, "..", "www\\")
+        www_path = os.path.join(base_path, "..", "www")
         http_path = os.path.join(base_path, "..", "www", "start_http_server.py")
         if sys.platform == 'win32':
             os.chdir(www_path)
@@ -336,17 +349,20 @@ def json2shp(uuid, json_path):
        
     print "creating shp from geojson..." 
     
-def shp2json(shp,dbf, rebuild=False):
+def shp2json(shp,dbf, rebuild=False, uuid=None):
     """
     Create a GeoJson file from pysal.shp object and store it in www/ path.
     Which can be visited using http://localhost:8000/*.json
     """
-    uuid = getuuid(shp)
+    if uuid == None:
+        uuid = getuuid(shp)
     
     global R_SHP_DICT
     if uuid not in R_SHP_DICT:
         R_SHP_DICT[uuid] = {"shp":None, "dbf":None,"json":None, "shp_path":""}
     R_SHP_DICT[uuid]["shp"] = shp
+    R_SHP_DICT[uuid]["dbf"] = dbf
+    R_SHP_DICT[uuid]["shp_path"] = shp.dataPath
     
     print "creating geojson ..."
     current_path = os.path.realpath(__file__)    
@@ -361,28 +377,28 @@ def shp2json(shp,dbf, rebuild=False):
         reader = shapefile.Reader(shp.dataPath)
         fields = reader.fields[1:]
         field_names = [field[0] for field in fields]
-        """
-        field_names = dbf.header
-        for i, geom in enumerate(shp):
-            atr = dict(zip(field_names, dbf[i][0]))
-            atr["GEODAID"] = i
-            geo = geom.__geo_interface__
-            coords = geo["coordinates"]
-            buffer.append(dict(type="Feature", geometry=geo, properties=atr))
-        """
-        for i, sr in enumerate(reader.shapeRecords()):
-            field_names.append("GEODAID")
-            sr.record.append(i)
-            atr = dict(zip(field_names, sr.record))
-            geom = sr.shape.__geo_interface__
-            buffer.append(dict(type="Feature", geometry=geom, properties=atr))
+        try:
+            for i, sr in enumerate(reader.shapeRecords()):
+                field_names.append("GEODAID")
+                sr.record.append(i)
+                atr = dict(zip(field_names, sr.record))
+                geom = sr.shape.__geo_interface__
+                buffer.append(dict(type="Feature", geometry=geom, properties=atr))
+        except:
+            field_names = dbf.header
+            for i, geom in enumerate(shp):
+                atr = dict(zip(field_names, dbf[i][0]))
+                atr["GEODAID"] = i
+                geo = geom.__geo_interface__
+                buffer.append(dict(type="Feature", geometry=geo, properties=atr))
+            
         geojson = open(www_path, "w")
         geojson.write(json.dumps({"type": "FeatureCollection","features": buffer}))
         geojson.close()
     else:
         print "The geojson data has been created before. If you want re-create geojson data, please call shp2json(shp, rebuild=True)."
 
-def show_map(shp, dbf):
+def show_map(shp, dbf, rebuild=False, uuid=None):
     """
     Ideally, users need to open and process shapefile using:
     >>>> shp = pysal.open(pysal.examples.get_path('columbus.shp'),'r')
@@ -399,11 +415,12 @@ def show_map(shp, dbf):
     
     To create a scatter plot, users need to 
     """
-    shp2json(shp, dbf)
+    shp2json(shp, dbf, rebuild=rebuild, uuid=uuid)
     
     global WS_SERVER 
     ws = create_connection(WS_SERVER)
-    uuid = getuuid(shp)
+    if uuid == None: 
+        uuid = getuuid(shp)
     
     msg = {
         "command": "add_layer",
@@ -414,11 +431,12 @@ def show_map(shp, dbf):
     print "send:", str_msg
     ws.close()
     
-def get_selected(shp):
+def get_selected(shp,uuid=None):
     """
     Get shape object ids from web pages.
     """
-    uuid = getuuid(shp)
+    if uuid == None:
+        uuid = getuuid(shp)
     if uuid not in R_SHP_DICT: 
         print "Please run show_map first."
         return
@@ -441,11 +459,11 @@ def get_selected(shp):
     ids = [int(id) for id in ids]
     return ids
     
-def select(shp, ids=[]):
+def select(shp, ids=[], uuid=None):
     if len(ids) == 0:
         return
-    
-    uuid = getuuid(shp)
+    if uuid == None: 
+        uuid = getuuid(shp)
     
     global WS_SERVER 
     ws = create_connection(WS_SERVER)
@@ -459,13 +477,14 @@ def select(shp, ids=[]):
     #print "send:", str_msg
     ws.close()
     
-def quantile_map(shp, dbf, var, k, basemap=None):
-    uuid = getuuid(shp)
+def quantile_map(shp, dbf, var, k, basemap=None, uuid=None):
+    if uuid == None:
+        uuid = getuuid(shp)
     if uuid not in R_SHP_DICT: 
         print "Please run show_map first."
         return
     y = dbf.by_col[var]
-    q = pysal.esda.mapclassify.Quantiles(np.array(y), k=k)    
+    q = pysal.esda.mapclassify.Equal_Interval(np.array(y), k=k)    
     bins = q.bins
     id_array = []
     for i, upper in enumerate(bins):
@@ -599,7 +618,7 @@ def setup_cartodb(api_key, user):
     CARTODB_API_KEY = api_key
     CARTODB_USER = user
 
-def cartodb_get_data(table_name, fields=[]):
+def cartodb_get_data(table_name, fields=[],loc=None):
     fields_str = '*'
     if len(fields) > 0:
         if "the_geom" not in fields:
@@ -616,11 +635,13 @@ def cartodb_get_data(table_name, fields=[]):
     req = urllib2.Request(url, urllib.urlencode(params))
     response = urllib2.urlopen(req)
     content = response.read()
-    
-    loc = os.path.realpath(__file__)    
-    loc = loc[0:loc.rindex('/')]
-    loc = loc[0:loc.rindex('/')] + "/www/tmp/"
-    ziploc = loc + "tmp.zip"
+   
+    if loc == None: 
+        loc = os.path.realpath(__file__)    
+        loc = os.path.split(loc)[0]
+        loc = os.path.split(loc)[0]
+        loc = os.path.join(loc, "www", "tmp")
+    ziploc = os.path.join(loc, "tmp.zip")
     
     o = open(ziploc, "wb")
     o.write(content)
@@ -644,12 +665,22 @@ def cartodb_get_mapid():
     response = urllib2.urlopen(req)
     content = response.read()    
     
+def cartodb_show_tables(shp, uuid=None, layers=[]):
+    base_table = uuid
+    if base_table == None:
+        base_table = getuuid(shp)
+    #cartodb_show_maps([{'name':road_table,'type':'line'}])   
+
 def cartodb_show_maps(tables):
     default_cartocss = {}
     default_cartocss['poly'] = ('#layer {'
         'polygon-fill: green; '
         'polygon-opacity: 0.8; '
         'line-color: #CCC; }')
+    default_cartocss['line'] = ('#layer {'
+        'line-width: 2; '
+        'line-opacity: 0.8; '
+        'line-color: #FF6600; }')
     default_cartocss['point'] = ('#layer { '
          'marker-fill: #FF6600; marker-opacity: 1; marker-width: 6;'
          'marker-line-color: white; marker-line-width: 1; '
@@ -681,6 +712,18 @@ def cartodb_show_maps(tables):
     #print "send:", str_msg
     ws.close()
  
+def cartodb_drop_table(table_name):
+    import requests
+    # delete existing lisa_table 
+    sql = 'DROP TABLE %s' % (table_name)
+    url = 'https://%s.cartodb.com/api/v1/sql' % CARTODB_DOMAIN
+    params = {
+        'api_key': CARTODB_API_KEY,
+        'q': sql,
+    }
+    r = requests.get(url, params=params, verify=False)
+    content = r.json()    
+   
 def cartodb_lisa(shp, dbf, w, var, poly_table, lisa_table):
     import StringIO
     y = dbf.by_col[var]
@@ -690,30 +733,26 @@ def cartodb_lisa(shp, dbf, w, var, poly_table, lisa_table):
         if lm.p_sim[i] >= 0.05:
             lisa[i] = 0
     loc = os.path.realpath(__file__)    
-    loc = loc[0:loc.rindex('/')]
-    loc = loc[0:loc.rindex('/')] + "/www/tmp/"        
-    csv_loc = loc + lisa_table + ".csv" 
+    loc = os.path.split(loc)[0]
+    loc = os.path.split(loc)[0]
+    loc = os.path.join(loc, "www", "tmp")
+    
+    csv_loc = os.path.join(loc, lisa_table + ".csv" )
     csv = open(csv_loc, "w")
     csv.write("cartodb_id, lisa\n")
     for i,v in enumerate(lisa):
         csv.write("%s,%s\n" % (i, v))
     csv.close()
     # create zip file for uploading
-    zp_loc =  loc + "upload.zip"
+    zp_loc =  os.path.join(loc, "upload.zip")
+    os.remove(zp_loc)
     zp = zipfile.ZipFile(zp_loc,"w")
     zp.write(csv_loc)
     zp.close()
 
     import requests
     # delete existing lisa_table 
-    sql = 'DROP TABLE %s' % (lisa_table)
-    url = 'https://%s.cartodb.com/api/v1/sql' % CARTODB_DOMAIN
-    params = {
-        'api_key': CARTODB_API_KEY,
-        'q': sql,
-    }
-    r = requests.get(url, params=params, verify=False)
-    content = r.json()    
+    cartodb_drop_table(lisa_table)
     
     # upload lisa_table : none-geometry table
     import_url = "https://%s.cartodb.com/api/v1/imports/?api_key=%s" % \
@@ -742,6 +781,36 @@ def cartodb_lisa(shp, dbf, w, var, poly_table, lisa_table):
             print d['get_error_text']['what_about']
     return d['table_name']
             
+def cartodb_quantile_map(shp, var, k, uuid=None):
+    table = uuid
+    if table == None:
+        table = getuuid(shp)
+       
+    dbf = R_SHP_DICT[table]['dbf']
+    y = dbf.by_col[var]
+    q = pysal.esda.mapclassify.Equal_Interval(np.array(y), k=k)    
+    bins = q.bins
+    n = len(bins)   
+    colors = YLRD[n]
+    geotype = shp.type
+    if geotype == pysal.cg.shapes.Polygon:
+        geotype = 'poly'
+    elif geotype == pysal.cg.shapes.LineSegment or geotype == pysal.cg.Chain:
+        geotype = 'line'
+        css = '#layer {polygon-opacity:0; line-color:#FFFFB2; line-width:3; line-opacity:0.8;}'
+        for i in range(n):
+            upper = bins[n-1-i] 
+            color = colors[n-1-i]
+            css += '#layer [ %s <= %s] {line-color: %s;}' % (var, upper, color)
+    elif geotype == pysal.cg.shapes.Point:
+        geotype = 'point'
+    
+    tables = [
+        {'name':table, 'type':geotype, 'css': css }
+    ]
+    
+    cartodb_show_maps(tables)
+    
 def cartodb_show_lisa_map(base_table, lisa_table, layers=[]):
     lisa_sql = 'SELECT a.the_geom_webmercator,a.cartodb_id,b.lisa FROM %s AS a, %s AS b WHERE a.cartodb_id=b.cartodb_id' % (base_table, lisa_table)
     
@@ -775,31 +844,33 @@ def cartodb_table_exists(shp):
 def zipshapefiles(shp):
     uuid = getuuid(shp)
     shpPath = shp.dataPath
-    prefix = shpPath[0:shpPath.rindex('/')+1]
+    prefix = os.path.split(shpPath)[0]
     dbfPath = shpPath[:-3] + "dbf"
     shxPath = shpPath[:-3] + "shx"
     prjPath = shpPath[:-3] + "prj"
-    new_shpPath = prefix + uuid + ".shp"
-    new_dbfPath = prefix + uuid + ".dbf"
-    new_shxPath = prefix + uuid + ".shx"
-    new_prjPath = prefix + uuid + ".prj"
+    new_shpPath = os.path.join(prefix, uuid + ".shp")
+    new_shxPath = os.path.join(prefix, uuid + ".shx")
+    new_dbfPath = os.path.join(prefix, uuid + ".dbf")
+    new_prjPath = os.path.join(prefix, uuid + ".prj")
     shutil.copy(shpPath, new_shpPath)
     shutil.copy(dbfPath, new_dbfPath)
     shutil.copy(shxPath, new_shxPath)
     shutil.copy(prjPath,  new_prjPath)
     
-    loc = os.path.realpath(__file__)    
-    loc = loc[0:loc.rindex('/')]
-    loc = loc[0:loc.rindex('/')] + "/www/tmp/"
-    ziploc = loc + "upload.zip"
-    with zipfile.ZipFile(ziploc,'w') as myzip:
-        myzip.write(new_shpPath) 
-        myzip.write(new_shxPath) 
-        myzip.write(new_dbfPath) 
-        myzip.write(new_prjPath) 
+    ziploc = os.path.join(prefix, "upload.zip")
+    myzip = zipfile.ZipFile(ziploc,'w') 
+    myzip.write(new_shpPath) 
+    myzip.write(new_shxPath) 
+    myzip.write(new_dbfPath) 
+    myzip.write(new_prjPath) 
+    myzip.close()
+    
     return ziploc
         
 def cartodb_upload(shp):
+    if isinstance(shp, str):
+        shp = pysal.open(shp)
+        
     tbl_name = cartodb_table_exists(shp)
     if tbl_name: return tbl_name
     
@@ -878,8 +949,24 @@ if __name__ == '__main__':
             
     setup()
     
+    setup_cartodb("340808e9a453af9680684a65990eb4eb706e9b56","lixun910")
+    road_table = "fada5469634f1c862e648cf39a78cf3b"
+    prj_road_count_file = "../test_data/fada5469634f1c862e648cf39a78cf3b.shp"
+    
+    import pysal
+    
+    road_shp = pysal.open(prj_road_count_file)
+    road_dbf = pysal.open(prj_road_count_file[:-3] + "dbf")
+    #road_w = pysal.open(roadWFile).read()     
+    
+    show_map(road_shp, road_dbf, uuid=road_table)
+    
+    cartodb_show_maps([{'name':road_table,'type':'line'}])
+    
+    cartodb_quantile_map(road_shp, 'cnt', 5, uuid=road_table)
+    
     shp_path = "/data/sfpd_plots.shp"
-    shp_path = "C:\\Users\\Xun\\Dropbox\\nyc_network\\seg_road_LISA2.shp"
+    shp_path = "../test_data/man_road.shp"
     shp = pysal.open(shp_path)
     dbf = pysal.open(shp_path[:-3]+"dbf") 
    
