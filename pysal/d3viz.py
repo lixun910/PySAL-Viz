@@ -8,7 +8,7 @@ import shapefile
 import zipfile
 import urllib2, urllib
 from rdp import rdp
-
+from network_cluster import NetworkCluster
 
 __author__='Xun Li <xunli@asu.edu>'
 __all__=['clean_ports','setup','getuuid','shp2json','show_map','get_selected', 'select','quantile_map','lisa_map','scatter_plot_matrix']
@@ -275,14 +275,24 @@ def get_dbf(uuid):
 
 def clean_ports():
     ports = ['9000','8000']
-    for p in ports:
-        popen = subprocess.Popen(['lsof -n -i4TCP:%s | grep LISTEN'%p],
-                                 shell=True,
-                                 stdout=subprocess.PIPE)
-        (data, err) = popen.communicate()
-        if data:
-            pid = data.split()[1]
-            subprocess.Popen(['kill', '-9', pid])
+    if sys.platform == 'win32':
+        for p in ports:
+            popen = subprocess.Popen('netstat -ano | findstr %s'%p,
+                                     shell=True,
+                                     stdout=subprocess.PIPE)
+            (data, err) = popen.communicate()
+            if data:
+                pid = data.split()[4]
+                subprocess.Popen('TaskKill /F /PID %s' % pid, shell=True)
+    else:
+        for p in ports:
+            popen = subprocess.Popen(['lsof -n -i4TCP:%s | grep LISTEN'%p],
+                                     shell=True,
+                                     stdout=subprocess.PIPE)
+            (data, err) = popen.communicate()
+            if data:
+                pid = data.split()[1]
+                subprocess.Popen(['kill', '-9', pid])
             
 def setup(restart=True):
     if restart:
@@ -290,15 +300,22 @@ def setup(restart=True):
         current_path = os.path.realpath(__file__)    
         
         print "starting websocket server..."
-        script = "python %s/../ws_server/start_ws_server.py" % \
-            (current_path[0:current_path.rindex('/')])
-        subprocess.Popen([script], shell=True)
+        base_path = os.path.split(current_path)[0]
+        ws_path = os.path.join(base_path, "..", "ws_server", "start_ws_server.py")
+        if sys.platform == 'win32':
+            subprocess.Popen([sys.executable, ws_path], shell=True)
+        else:
+            subprocess.Popen([script], shell=True)
         
         print "starting http server..."
-        loc = current_path[0:current_path.rindex('/')]
-        script = "cd %s/../www/ && python %s/../www/start_http_server.py" % \
-            (loc, loc)
-        subprocess.Popen([script], shell=True)
+        www_path = os.path.join(base_path, "..", "www\\")
+        http_path = os.path.join(base_path, "..", "www", "start_http_server.py")
+        if sys.platform == 'win32':
+            os.chdir(www_path)
+            subprocess.Popen([sys.executable, http_path], shell=True)
+        else:
+            script = "cd %s && python %s" % (www_path, http_path)
+            subprocess.Popen([script], shell=True)
         
     from time import sleep
     sleep(1)
@@ -333,8 +350,8 @@ def shp2json(shp,dbf, rebuild=False):
     
     print "creating geojson ..."
     current_path = os.path.realpath(__file__)    
-    www_path = "%s/../www/tmp/%s.json" % \
-        (current_path[0:current_path.rindex('/')], uuid)
+    base_path = os.path.split(current_path)[0]
+    www_path = os.path.join(base_path, "..", "www", "tmp", "%s.json" % uuid)
    
     R_SHP_DICT[uuid]["json"] = www_path
     
@@ -850,14 +867,25 @@ def cartodb_count_pts_in_polys(poly_tbl, pt_tbl, count_col_name):
     response = urllib2.urlopen(req)
     content = response.read()
     
+
+#################################################
+#
+# Network
+#
+#################################################
+
 if __name__ == '__main__':
+            
     setup()
     
     shp_path = "/data/sfpd_plots.shp"
+    shp_path = "C:\\Users\\Xun\\Dropbox\\nyc_network\\seg_road_LISA2.shp"
     shp = pysal.open(shp_path)
     dbf = pysal.open(shp_path[:-3]+"dbf") 
    
     show_map(shp, dbf) 
+    quantile_map(shp, dbf, 'cnt',5)
+    quantile_map(shp, dbf, 'cnt',5,basemap="leaflet_map")
     
     shp_path = "/data/sf_cartheft.shp"
     crime_shp = pysal.open(shp_path)
