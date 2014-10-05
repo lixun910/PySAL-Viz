@@ -665,13 +665,18 @@ def cartodb_get_mapid():
     response = urllib2.urlopen(req)
     content = response.read()    
     
-def cartodb_show_tables(shp, uuid=None, layers=[]):
+def cartodb_show_maps(shp, uuid=None, layers=[]):
     base_table = uuid
     if base_table == None:
         base_table = getuuid(shp)
-    #cartodb_show_maps([{'name':road_table,'type':'line'}])   
+        
+    tables = [{'name':base_table, 'type':cartodb_get_geomtype(shp)}]
+    for layer in layers:
+        table = getuuid(layer)
+        tables += [{'name':table, 'type':cartodb_get_geomtype(layer)}]
+    cartodb_show_tables(tables)
 
-def cartodb_show_maps(tables):
+def cartodb_show_tables(tables):
     default_cartocss = {}
     default_cartocss['poly'] = ('#layer {'
         'polygon-fill: green; '
@@ -724,20 +729,18 @@ def cartodb_drop_table(table_name):
     r = requests.get(url, params=params, verify=False)
     content = r.json()    
    
-def cartodb_lisa(shp, dbf, w, var, poly_table, lisa_table):
+def cartodb_lisa(local_moran, new_lisa_table):
     import StringIO
-    y = dbf.by_col[var]
-    lm = pysal.Moran_Local(np.array(y), w)
-    lisa = lm.q
-    for i,v in enumerate(lm.p_sim):
-        if lm.p_sim[i] >= 0.05:
+    lisa = local_moran.q
+    for i,v in enumerate(local_moran.p_sim):
+        if local_moran.p_sim[i] >= 0.05:
             lisa[i] = 0
     loc = os.path.realpath(__file__)    
     loc = os.path.split(loc)[0]
     loc = os.path.split(loc)[0]
     loc = os.path.join(loc, "www", "tmp")
     
-    csv_loc = os.path.join(loc, lisa_table + ".csv" )
+    csv_loc = os.path.join(loc, new_lisa_table + ".csv" )
     csv = open(csv_loc, "w")
     csv.write("cartodb_id, lisa\n")
     for i,v in enumerate(lisa):
@@ -752,9 +755,9 @@ def cartodb_lisa(shp, dbf, w, var, poly_table, lisa_table):
 
     import requests
     # delete existing lisa_table 
-    cartodb_drop_table(lisa_table)
+    cartodb_drop_table(new_lisa_table)
     
-    # upload lisa_table : none-geometry table
+    # upload new_lisa_table : none-geometry table
     import_url = "https://%s.cartodb.com/api/v1/imports/?api_key=%s" % \
         (CARTODB_DOMAIN, CARTODB_API_KEY)
     r = requests.post(import_url, files={'file':open(zp_loc, 'rb')}, verify=False)
@@ -781,6 +784,16 @@ def cartodb_lisa(shp, dbf, w, var, poly_table, lisa_table):
             print d['get_error_text']['what_about']
     return d['table_name']
             
+def cartodb_get_geomtype(shp):
+    geotype = shp.type
+    if geotype == pysal.cg.shapes.Polygon:
+        geotype = 'poly'
+    elif geotype == pysal.cg.shapes.LineSegment or geotype == pysal.cg.Chain:
+        geotype = 'line'
+    elif geotype == pysal.cg.shapes.Point:
+        geotype = 'point'
+    return geotype
+    
 def cartodb_quantile_map(shp, var, k, uuid=None):
     table = uuid
     if table == None:
@@ -809,9 +822,14 @@ def cartodb_quantile_map(shp, var, k, uuid=None):
         {'name':table, 'type':geotype, 'css': css }
     ]
     
-    cartodb_show_maps(tables)
+    cartodb_show_tables(tables)
     
-def cartodb_show_lisa_map(base_table, lisa_table, layers=[]):
+def cartodb_show_lisa_map(shp, lisa_table, uuid=None, layers=[]):
+    
+    base_table = uuid
+    if base_table == None:
+        base_table = getuuid(shp)
+        
     lisa_sql = 'SELECT a.the_geom_webmercator,a.cartodb_id,b.lisa FROM %s AS a, %s AS b WHERE a.cartodb_id=b.cartodb_id' % (base_table, lisa_table)
     
     tables = [
@@ -820,7 +838,7 @@ def cartodb_show_lisa_map(base_table, lisa_table, layers=[]):
     ]
     tables += layers
     
-    cartodb_show_maps(tables)
+    cartodb_show_tables(tables)
     
    
 def cartodb_table_exists(shp):
@@ -952,18 +970,27 @@ if __name__ == '__main__':
     setup_cartodb("340808e9a453af9680684a65990eb4eb706e9b56","lixun910")
     road_table = "fada5469634f1c862e648cf39a78cf3b"
     prj_road_count_file = "../test_data/fada5469634f1c862e648cf39a78cf3b.shp"
-    
+    roadWFile = "../test_data/man_road.gal" 
     import pysal
     
     road_shp = pysal.open(prj_road_count_file)
     road_dbf = pysal.open(prj_road_count_file[:-3] + "dbf")
-    #road_w = pysal.open(roadWFile).read()     
+    road_w = pysal.open(roadWFile).read()     
     
     show_map(road_shp, road_dbf, uuid=road_table)
     
-    cartodb_show_maps([{'name':road_table,'type':'line'}])
+    cartodb_show_maps(road_shp, uuid=road_table)
     
     cartodb_quantile_map(road_shp, 'cnt', 5, uuid=road_table)
+    
+    import numpy as np
+    y = np.array(road_dbf.by_col["cnt"])
+    lm = pysal.Moran_Local(y, road_w)    
+
+    new_lisa_table = "road_lisa"
+    new_lisa_table = cartodb_lisa(lm, new_lisa_table)    
+
+    cartodb_show_lisa_map(road_shp, new_lisa_table, uuid=road_table)
     
     shp_path = "/data/sfpd_plots.shp"
     shp_path = "../test_data/man_road.shp"
