@@ -51,6 +51,7 @@ CARTO_CSS_POINT_CLOUD = ('#layer {'
                    'third/marker-comp-op: lighten;}' )
     
 CARTO_CSS_INVISIBLE = '#layer {polygon-opacity: 0;}'
+CARTO_CSS_INVISIBLE_LINE = '#layer {line-opacity: 0;}'
                   
 CARTO_CSS_LISA = ('#layer { '
                   'polygon-fill: #FFF; '
@@ -60,6 +61,15 @@ CARTO_CSS_LISA = ('#layer { '
                   '#layer[lisa="2"]{polygon-fill: lightsalmon;}'
                   '#layer[lisa="3"]{polygon-fill: blue;}'
                   '#layer[lisa="4"]{polygon-fill: lightblue;}')
+
+CARTO_CSS_LISA_LINE = ('#layer { '
+                  'line-width: 2; '
+                  'polygon-opacity: 0.5; '
+                  'line-opacity: 0.5;} '
+                  '#layer[lisa="1"]{line-color: red;}'
+                  '#layer[lisa="2"]{line-color: lightsalmon;}'
+                  '#layer[lisa="3"]{line-color: blue;}'
+                  '#layer[lisa="4"]{line-color: lightblue;}')
     
 class AnswerMachine(threading.Thread):
     """
@@ -873,9 +883,15 @@ def cartodb_show_lisa_map(shp, lisa_table, uuid=None, layers=[]):
         
     lisa_sql = 'SELECT a.the_geom_webmercator,a.cartodb_id,b.lisa FROM %s AS a, %s AS b WHERE a.cartodb_id=b.cartodb_id' % (base_table, lisa_table)
     
+    geotype = cartodb_get_geomtype(shp)
+    invisible_css = CARTO_CSS_INVISIBLE
+    lisa_css = CARTO_CSS_LISA
+    if geotype == 'line':
+        invisible_css = CARTO_CSS_INVISIBLE_LINE
+        lisa_css = CARTO_CSS_LISA_LINE
     tables = [
-        {'name':base_table, 'type':'poly', 'css': CARTO_CSS_INVISIBLE},
-        {'name':lisa_table, 'type':'poly', 'css': CARTO_CSS_LISA, 'sql': lisa_sql}
+        {'name':base_table, 'type':geotype, 'css': invisible_css},
+        {'name':lisa_table, 'type':geotype, 'css': lisa_css, 'sql': lisa_sql}
     ]
     
     for layer in layers:
