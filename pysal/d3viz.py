@@ -773,9 +773,13 @@ def cartodb_lisa(local_moran, new_lisa_table):
     csv.close()
     # create zip file for uploading
     zp_loc =  os.path.join(loc, "upload.zip")
-    os.remove(zp_loc)
-    zp = zipfile.ZipFile(zp_loc,"w")
-    zp.write(csv_loc)
+    try:
+        os.remove(zp_loc)
+    except:
+        pass
+    os.chdir(loc)
+    zp = zipfile.ZipFile("upload.zip","w")
+    zp.write(new_lisa_table+".csv")
     zp.close()
 
     import requests
@@ -893,7 +897,7 @@ def cartodb_table_exists(shp):
     
 def zipshapefiles(shp):
     uuid = getuuid(shp)
-    shpPath = shp.dataPath
+    shpPath = os.path.abspath(shp.dataPath)
     prefix = os.path.split(shpPath)[0]
     dbfPath = shpPath[:-3] + "dbf"
     shxPath = shpPath[:-3] + "shx"
@@ -906,18 +910,27 @@ def zipshapefiles(shp):
     shutil.copy(dbfPath, new_dbfPath)
     shutil.copy(shxPath, new_shxPath)
     shutil.copy(prjPath,  new_prjPath)
-    
+  
+    os.chdir(prefix) 
     ziploc = os.path.join(prefix, "upload.zip")
-    os.remove(ziploc)
-    myzip = zipfile.ZipFile(ziploc,'w') 
-    myzip.write(new_shpPath) 
-    myzip.write(new_shxPath) 
-    myzip.write(new_dbfPath) 
-    myzip.write(new_prjPath) 
+    try:
+        os.remove(ziploc)
+    except:
+        pass
+    try:
+        import zlib
+        mode = zipfile.ZIP_DEFLATED
+    except:
+        mode = zipfile.ZIP_DEFLATED
+    myzip = zipfile.ZipFile("upload.zip",'w', mode) 
+    myzip.write(os.path.split(new_shpPath)[1])
+    myzip.write(os.path.split(new_shxPath)[1])
+    myzip.write(os.path.split(new_dbfPath)[1])
+    myzip.write(os.path.split(new_prjPath)[1])
     myzip.close()
   
-    for path in [new_shpPath, new_shxPath, new_dbfPath, new_prjPath]: 
-        os.remove(path) 
+    #for path in [new_shpPath, new_shxPath, new_dbfPath, new_prjPath]: 
+    #    os.remove(path) 
     return ziploc
         
 def cartodb_upload(shp, overwrite=False):
@@ -1013,6 +1026,9 @@ if __name__ == '__main__':
     shp_path = "../test_data/sfpd_plots.shp"
     plots_shp = pysal.open(shp_path)
     plots_dbf = pysal.open(shp_path[:-3]+"dbf") 
+    
+    plot_table = cartodb_upload(plots_shp)
+    crime_table = cartodb_upload(crime_shp)
    
     show_map(plots_shp) 
     
@@ -1024,8 +1040,6 @@ if __name__ == '__main__':
 
     show_map(crime_shp)
     
-    plot_table = cartodb_upload(plots_shp)
-    crime_table = cartodb_upload(crime_shp)
     
     cartodb_show_maps(plots_shp, layers=[crime_shp])
     cartodb_show_maps(plots_shp, layers=[crime_shp], 
