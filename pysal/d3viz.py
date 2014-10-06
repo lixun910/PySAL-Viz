@@ -9,6 +9,7 @@ import zipfile
 import urllib2, urllib
 from rdp import rdp
 from network_cluster import NetworkCluster
+from time import sleep
 
 __author__='Xun Li <xunli@asu.edu>'
 __all__=['clean_ports','setup','getuuid','shp2json','show_map','get_selected', 'select','quantile_map','lisa_map','scatter_plot_matrix']
@@ -63,7 +64,8 @@ CARTO_CSS_LISA = ('#layer { '
                   '#layer[lisa="4"]{polygon-fill: lightblue;}')
 
 CARTO_CSS_LISA_LINE = ('#layer { '
-                  'line-width: 2; '
+                  'line-width: 3; '
+                  'line-color: #CCC; '
                   'polygon-opacity: 0.5; '
                   'line-opacity: 0.5;} '
                   '#layer[lisa="1"]{line-color: red;}'
@@ -341,11 +343,11 @@ def setup(restart=True):
             script = "cd %s && python %s" % (www_path, http_path)
             subprocess.Popen([script], shell=True)
         
-    from time import sleep
     sleep(1)
     global PORTAL
     url = "http://127.0.0.1:8000/%s" % PORTAL
     webbrowser.open_new(url)
+    sleep(1)
     
 def getuuid(shp):
     """
@@ -442,6 +444,7 @@ def show_map(shp, rebuild=False, uuid=None):
     ws.send(str_msg)
     print "send:", str_msg
     ws.close()
+    sleep(1)
     
 def close_all():
     global WS_SERVER 
