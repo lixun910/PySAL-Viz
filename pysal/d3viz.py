@@ -98,7 +98,7 @@ class AnswerMachine(threading.Thread):
                         R_SHP_DICT[uuid]["dbf"] = dbf
                         R_SHP_DICT[uuid]["shp_path"] = path
                         
-                        self.parent.show_map(shp, dbf)
+                        self.parent.show_map(shp)
                     
                 elif command == "new_quantile_map":
                     uuid = msg["uuid"]
@@ -107,7 +107,7 @@ class AnswerMachine(threading.Thread):
                     shp = R_SHP_DICT[uuid]["shp"]
                     dbf = R_SHP_DICT[uuid]["dbf"]
                     
-                    self.parent.quantile_map(shp, dbf, var, cat)
+                    self.parent.quantile_map(shp, var, cat)
                     
                 elif command == "create_w":
                     uuid = msg["uuid"]
@@ -349,7 +349,7 @@ def json2shp(uuid, json_path):
        
     print "creating shp from geojson..." 
     
-def shp2json(shp,dbf, rebuild=False, uuid=None):
+def shp2json(shp, rebuild=False, uuid=None):
     """
     Create a GeoJson file from pysal.shp object and store it in www/ path.
     Which can be visited using http://localhost:8000/*.json
@@ -360,9 +360,10 @@ def shp2json(shp,dbf, rebuild=False, uuid=None):
     global R_SHP_DICT
     if uuid not in R_SHP_DICT:
         R_SHP_DICT[uuid] = {"shp":None, "dbf":None,"json":None, "shp_path":""}
-    R_SHP_DICT[uuid]["shp"] = shp
-    R_SHP_DICT[uuid]["dbf"] = dbf
-    R_SHP_DICT[uuid]["shp_path"] = shp.dataPath
+        dbf = pysal.open(shp.dataPath[:-3]+"dbf") 
+        R_SHP_DICT[uuid]["shp"] = shp
+        R_SHP_DICT[uuid]["dbf"] = dbf
+        R_SHP_DICT[uuid]["shp_path"] = shp.dataPath
     
     print "creating geojson ..."
     current_path = os.path.realpath(__file__)    
@@ -398,7 +399,7 @@ def shp2json(shp,dbf, rebuild=False, uuid=None):
     else:
         print "The geojson data has been created before. If you want re-create geojson data, please call shp2json(shp, rebuild=True)."
 
-def show_map(shp, dbf, rebuild=False, uuid=None):
+def show_map(shp, rebuild=False, uuid=None):
     """
     Ideally, users need to open and process shapefile using:
     >>>> shp = pysal.open(pysal.examples.get_path('columbus.shp'),'r')
@@ -415,7 +416,7 @@ def show_map(shp, dbf, rebuild=False, uuid=None):
     
     To create a scatter plot, users need to 
     """
-    shp2json(shp, dbf, rebuild=rebuild, uuid=uuid)
+    shp2json(shp, rebuild=rebuild, uuid=uuid)
     
     global WS_SERVER 
     ws = create_connection(WS_SERVER)
@@ -429,6 +430,19 @@ def show_map(shp, dbf, rebuild=False, uuid=None):
     str_msg = json.dumps(msg)
     ws.send(str_msg)
     print "send:", str_msg
+    ws.close()
+    
+def close_all():
+    global WS_SERVER 
+    ws = create_connection(WS_SERVER)
+    msg = {
+        "command": "close_all",
+    }
+    str_msg = json.dumps(msg)
+    ws.send(str_msg)
+    #print "send:", str_msg
+    print "receiving..."
+    rsp = ws.recv()
     ws.close()
     
 def get_selected(shp,uuid=None):
@@ -456,7 +470,7 @@ def get_selected(shp,uuid=None):
     
     msg = json.loads(rsp)
     ids = msg["ids"].strip().split(",")
-    ids = [int(id) for id in ids]
+    ids = [int(id) for id in ids if id != '']
     return ids
     
 def select(shp, ids=[], uuid=None):
@@ -477,14 +491,16 @@ def select(shp, ids=[], uuid=None):
     #print "send:", str_msg
     ws.close()
     
-def quantile_map(shp, dbf, var, k, basemap=None, uuid=None):
+def quantile_map(shp, var, k, basemap=None, uuid=None):
     if uuid == None:
         uuid = getuuid(shp)
     if uuid not in R_SHP_DICT: 
         print "Please run show_map first."
         return
+    dbf = R_SHP_DICT[uuid]['dbf']
+    
     y = dbf.by_col[var]
-    q = pysal.esda.mapclassify.Equal_Interval(np.array(y), k=k)    
+    q = pysal.esda.mapclassify.Quantiles(np.array(y), k=k)    
     bins = q.bins
     id_array = []
     for i, upper in enumerate(bins):
@@ -665,15 +681,24 @@ def cartodb_get_mapid():
     response = urllib2.urlopen(req)
     content = response.read()    
     
-def cartodb_show_maps(shp, uuid=None, layers=[]):
+def cartodb_show_maps(shp, css=None, uuid=None, layers=[]):
     base_table = uuid
     if base_table == None:
         base_table = getuuid(shp)
         
-    tables = [{'name':base_table, 'type':cartodb_get_geomtype(shp)}]
+    tables = []
+    table = {'name':base_table, 'type':cartodb_get_geomtype(shp)}
+    if css:
+        table["css"] = css
+    tables.append(table)        
+    
     for layer in layers:
-        table = getuuid(layer)
-        tables += [{'name':table, 'type':cartodb_get_geomtype(layer)}]
+        table_name = getuuid(layer['shp'])
+        table = {'name':table_name, 'type':cartodb_get_geomtype(layer)}
+        if 'css' in layer:
+            css = layer['css']
+            table["css"] = css            
+        tables.append(table)
     cartodb_show_tables(tables)
 
 def cartodb_show_tables(tables):
@@ -836,7 +861,14 @@ def cartodb_show_lisa_map(shp, lisa_table, uuid=None, layers=[]):
         {'name':base_table, 'type':'poly', 'css': CARTO_CSS_INVISIBLE},
         {'name':lisa_table, 'type':'poly', 'css': CARTO_CSS_LISA, 'sql': lisa_sql}
     ]
-    tables += layers
+    
+    for layer in layers:
+        table_name = getuuid(layer['shp'])
+        table = {'name':table_name, 'type':cartodb_get_geomtype(layer)}
+        if 'css' in layer:
+            css = layer['css']
+            table["css"] = css            
+        tables.append(table)
     
     cartodb_show_tables(tables)
     
@@ -876,21 +908,28 @@ def zipshapefiles(shp):
     shutil.copy(prjPath,  new_prjPath)
     
     ziploc = os.path.join(prefix, "upload.zip")
+    os.remove(ziploc)
     myzip = zipfile.ZipFile(ziploc,'w') 
     myzip.write(new_shpPath) 
     myzip.write(new_shxPath) 
     myzip.write(new_dbfPath) 
     myzip.write(new_prjPath) 
     myzip.close()
-    
+  
+    for path in [new_shpPath, new_shxPath, new_dbfPath, new_prjPath]: 
+        os.remove(path) 
     return ziploc
         
-def cartodb_upload(shp):
+def cartodb_upload(shp, overwrite=False):
     if isinstance(shp, str):
         shp = pysal.open(shp)
         
     tbl_name = cartodb_table_exists(shp)
-    if tbl_name: return tbl_name
+    if tbl_name and not overwrite: 
+        return tbl_name
+    elif tbl_name and overwrite:
+        print "overwrite existing table..."
+        cartodb_drop_table(tbl_name)
     
     import requests
     ziploc = zipshapefiles(shp) 
@@ -968,59 +1007,29 @@ if __name__ == '__main__':
     setup()
     
     setup_cartodb("340808e9a453af9680684a65990eb4eb706e9b56","lixun910")
-    road_table = "fada5469634f1c862e648cf39a78cf3b"
-    prj_road_count_file = "../test_data/fada5469634f1c862e648cf39a78cf3b.shp"
-    roadWFile = "../test_data/man_road.gal" 
-    import pysal
     
-    road_shp = pysal.open(prj_road_count_file)
-    road_dbf = pysal.open(prj_road_count_file[:-3] + "dbf")
-    road_w = pysal.open(roadWFile).read()     
+    #cartodb_quantile_map(road_shp, 'cnt', 5, uuid=road_table)
     
-    show_map(road_shp, road_dbf, uuid=road_table)
-    
-    cartodb_show_maps(road_shp, uuid=road_table)
-    
-    cartodb_quantile_map(road_shp, 'cnt', 5, uuid=road_table)
-    
-    import numpy as np
-    y = np.array(road_dbf.by_col["cnt"])
-    lm = pysal.Moran_Local(y, road_w)    
-
-    new_lisa_table = "road_lisa"
-    new_lisa_table = cartodb_lisa(lm, new_lisa_table)    
-
-    cartodb_show_lisa_map(road_shp, new_lisa_table, uuid=road_table)
-    
-    shp_path = "/data/sfpd_plots.shp"
-    shp_path = "../test_data/man_road.shp"
-    shp = pysal.open(shp_path)
-    dbf = pysal.open(shp_path[:-3]+"dbf") 
+    shp_path = "../test_data/sfpd_plots.shp"
+    plots_shp = pysal.open(shp_path)
+    plots_dbf = pysal.open(shp_path[:-3]+"dbf") 
    
-    show_map(shp, dbf) 
-    quantile_map(shp, dbf, 'cnt',5)
-    quantile_map(shp, dbf, 'cnt',5,basemap="leaflet_map")
+    show_map(plots_shp) 
     
-    shp_path = "/data/sf_cartheft.shp"
+    get_selected(plots_shp)
+    
+    shp_path = "../test_data/sf_cartheft.shp"
     crime_shp = pysal.open(shp_path)
     crime_dbf = pysal.open(shp_path[:-3]+"dbf")
 
-    show_map(crime_shp, crime_dbf)
+    show_map(crime_shp)
     
-    setup_cartodb("340808e9a453af9680684a65990eb4eb706e9b56","lixun910")
-    
-    plot_table = cartodb_upload(shp)
+    plot_table = cartodb_upload(plots_shp)
     crime_table = cartodb_upload(crime_shp)
     
-    cartodb_show_maps([
-        {'name':plot_table, 'type':'poly'}, 
-        {'name':crime_table, 'type':'point'}, 
-    ])
-    
-    cartodb_show_maps([
-        {'name':plot_table, 'type':'poly'}, 
-        {'name':crime_table, 'type':'point','css': CARTO_CSS_POINT_CLOUD}, 
-    ])
+    cartodb_show_maps(plots_shp, layers=[crime_shp])
+    cartodb_show_maps(plots_shp, layers=[crime_shp], 
+                      styles={crime_shp:d3viz.CARTO_CSS_POINT})
     
     count_col_name = "crime_cnt" 
     #counting points in polygon and save results to a new col in polygon table

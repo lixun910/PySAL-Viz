@@ -6,6 +6,11 @@
 body {
   font: 11px sans-serif;
 }
+svg, canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
 .axis path,
 .axis line {
   fill: none;
@@ -62,23 +67,18 @@ var science = { stats: {} };
 <script src="js/loess.js" charset="utf-8"></script>
 <script>
 var svg;
-
+var buffer, hbuffer;
 $(document).ready(function() {
 
   //////////////////////////////////////////////////////////////
   // Local Storage Brushing/Linking
   //////////////////////////////////////////////////////////////
-  localStorage.clear();
+  
   $(window).bind('storage', function(e) {
-    var uuid = localStorage.getItem('HL_LAYER');
-    
-    var select_ids = localStorage.getItem('HL_IDS').split(",");
-    if ( select_ids.length > 0) {
-      d3.selectAll("rect").each(function(d) { d.selected = false; });
-      var points = d3.selectAll("rect")[0];
-      for ( var i=0; i<select_ids.length; i++ ) {
-        $(points[select_ids[i]]).attr("class", "point selected"); 
-      }
+    var hl_ids = JSON.parse(localStorage.getItem('HL_IDS'));
+    for ( var uuid in hl_ids ) {
+      var ids = hl_ids[uuid];
+      highlight(ids);
     }
   });
   
@@ -90,20 +90,19 @@ $(document).ready(function() {
       title = msg.title,
       d = msg.data,
       fields = ["HR90", "HR90 lag"],
-      layerDict = window.opener.layerDict;
+      json = window.opener.dataDict[uuid];
    
-  localStorage["HL_LAYER"] = uuid;
   var svg_w = 600, 
       svg_h = 600;
       
   //window.opener.tempMsg = undefined;
   console.log(msg);  
-  if ( uuid in layerDict ) {
-    var layer = layerDict[uuid];
-    var data = [], data_copy = [];
+  if ( d ) {
+    var data = [], data_copy = [], data_map=[], data_dict={};
     for( var i in d.x) {
       data.push([d.x[i], d.y[i]]);
       data_copy.push([d.x[i], d.y[i]]);
+      data_dict[[d.x[i], d.y[i]]] = i;
     }
     data_copy.sort(function(a,b) { return a[0] - b[0]; });
         
@@ -137,6 +136,11 @@ $(document).ready(function() {
     var quadtree = d3.geom.quadtree()
         .extent([[xMin, yMin], [xMax, yMax]])
         (data);
+        
+    d3.selectAll("canvas")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .style("padding", margin.top + "px " + margin.right + "px " + margin.bottom + "px " + margin.left + "px ");
         
     // add the graph canvas to the body of the webpage
     var svg = d3.select("#map-container").append("svg")
@@ -177,7 +181,7 @@ $(document).ready(function() {
         .attr("dy", ".71em")
         .style("text-anchor", "end")
         .text(fields[1]);
-  
+    /* 
     // draw dots
     var point = svg.selectAll(".point")
         .data(data)
@@ -188,7 +192,8 @@ $(document).ready(function() {
         .attr("width", 3)
         .attr("height", 3)
         .attr("id", function(d,i){return i;});
-        
+    */
+    
     svg.append("g").append("line")
         .attr("class", "axis-rule")
         .style("stroke-dasharray", ("3, 3")) 
@@ -204,7 +209,37 @@ $(document).ready(function() {
         .attr("x2", width / 2.0)
         .attr("y1", 0)
         .attr("y2", height);
-        
+     
+    var draw_points = function() {
+      // draw points
+      var background = document.getElementById('background').getContext('2d');
+      background.strokeStyle = "rgba(0,0,0,0.02)";
+      
+      hbuffer = document.createElement("canvas");
+      hbuffer.width = document.getElementById('background').width;
+      hbuffer.height = document.getElementById('background').height;
+      var hctx = hbuffer.getContext('2d');
+      hctx.strokeStyle = "rgba(255,255,0,1)";
+      hctx.fillStyle = "rgba(255,255,0,1)";
+      
+      for (var i=0, n=data.length; i< n; i++ ) {
+        var x = data[i][0], y = data[i][1];
+        x = xMap(data[i]);
+        y = yMap(data[i]);
+        data_map.push([x, y]); 
+        background.fillRect(x, y, 4,4);
+        hctx.fillRect(x,y,4,4);
+      }
+      
+      buffer = document.createElement("canvas");
+      buffer.width = document.getElementById('background').width;
+      buffer.height = document.getElementById('background').height;
+      var bufferCtx = buffer.getContext("2d");
+      bufferCtx.drawImage(document.getElementById('background'), 0, 0);
+    };
+    
+    draw_points();
+    
     // Render the fitted line
     var draw_linear_regression = function() {
       svg.select(".reg").remove();
@@ -293,35 +328,69 @@ $(document).ready(function() {
         brush.clear();
         //brush.x(x[p.x]).y(y[p.y]).data = p;
       }
+      var background = document.getElementById('background').getContext('2d');
+      background.clearRect(0,0,width+1,height+1);
+      background.drawImage(buffer, 0,0);
     }
   
+    function highlight(ids) {
+      var background = document.getElementById('background').getContext('2d');
+      background.strokeStyle = "rgba(255,0,0,1)";
+      background.fillStyle = "rgba(255,255,0,1)";
+      background.clearRect(0,0,width+1,height+1);
+      background.drawImage(buffer, 0,0);
+      for (var i=0, n=ids.length; i< n; i++ ) {
+        var id = ids[i];
+        var x = data[id][0], y = data[id][1];
+        x = xMap(data[i]);
+        y = yMap(data[i]);
+        background.fillRect(x, y, 4,4);
+      }
+    }
+    
     // Highlight the selected circles.
     function brush(p) {
       var e = brush.extent();
       var x0 = e[0][0], y0 = e[0][1], 
           x1 = e[1][0], y1 = e[1][1];
+      var background = document.getElementById('background').getContext('2d');
+      background.clearRect(0,0,width+1,height+1);
+      background.drawImage(buffer, 0,0);
+      background.save();
+      background.beginPath();
+      background.rect(x0,y0, x1-x0, y1-y0);
+      background.clip();
+      background.drawImage(hbuffer, 0, 0);
+      background.restore();
+      
       x0 = xScale.invert(x0),
       x1 = xScale.invert(x1),
       y0 = yScale.invert(y0),
-      y1 = yScale.invert(y1),
-      point.each(function(d) { d.selected = false; });
+      y1 = yScale.invert(y1);
+     
+      selected = [];
       search(quadtree, x0, y1, x1, y0);
-      var select_ids = {};
-      point.classed("selected", function(d,i) { 
-       if (d.selected) select_ids[i] = 1;
-       return d.selected; 
-      });
-      // sync
-      var hl = "";
-      for(var k in select_ids) {
-        hl = hl + k + ","
+
+      // clean up select rect since it's ids only
+      if (localStorage["HL_MAP"] ) {
+        hm = JSON.parse(localStorage["HL_MAP"]);
+        delete hm[uuid];
+        localStorage["HL_MAP"] = JSON.stringify(hm);
       }
-      localStorage.setItem('HL_IDS', hl);
+      var hl = {};
+      if ( localStorage["HL_IDS"] ){ 
+        hl = JSON.parse(localStorage["HL_IDS"]);
+      }
+      hl[uuid] = selected;
+      localStorage["HL_IDS"] = JSON.stringify(hl);
     }
   
     // If the brush is empty, select all circles.
     function brushend() {
       if (brush.empty()) {
+        var background = document.getElementById('background').getContext('2d');
+        background.clearRect(0,0,width+1,height+1);
+        background.drawImage(buffer, 0,0);
       }
     }
  
@@ -330,7 +399,9 @@ $(document).ready(function() {
       quadtree.visit(function(node, x1, y1, x2, y2) {
         var p = node.point;
         if (p) {
-          p.selected = (p[0] >= x0) && (p[0] < x3) && (p[1] >= y0) && (p[1] < y3);
+          if (p[0] >= x0 && p[0] < x3 && p[1] >= y0 && p[1] < y3) {
+            selected.push(data_dict[p]);
+          }
         }
         return x1 >= x3 || y1 >= y3 || x2 < x0 || y2 < y0;
       });
@@ -342,7 +413,9 @@ $(document).ready(function() {
 </script>
 <body>
 <div id="map-container" style="align:center; border: 0px solid red;height: 100%;">
-  <div id="title" style="font-size:18px; margin:10px;">Title</div>
+  <canvas id="background"></canvas>
+  <svg></svg>
+  <id="title" style="font-size:18px; margin:10px;">Title</div>
 </div>
 <div id="selector" style="margin:10px; float: left;">
  <table><tr><td width=250>Change the bandwidth of fitted LOESS curve:</td>

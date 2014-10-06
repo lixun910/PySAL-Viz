@@ -722,7 +722,7 @@
       if ( colors == undefined ) { 
         for ( var i=0, n=points.length; i<n; i++ ) {
           var pt = points[i];
-          ctx.fillRect(pt[0], pt[1], 2, 2);
+          ctx.fillRect(pt[0], pt[1], 3, 3);
         } 
       } else {
         for ( var c in colors ) {
@@ -730,7 +730,7 @@
           var ids = colors[c];
           for ( var i=0, n=ids.length; i< n; ++i) {
             var pt = points[ids[i]];
-            ctx.fillRect(pt[0], pt[1], 2, 2);
+            ctx.fillRect(pt[0], pt[1], 3, 3);
           } 
         }
       }  

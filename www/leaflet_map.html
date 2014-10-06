@@ -20,7 +20,7 @@ body {
 <script src="js/utils.js"></script>
 <script>
 
-var map, bins, colors, id_array, data, geojson;
+var map, mapDict={}, bins, colors, id_array, data, geojson;
 
 $(document).ready(function() {
   $('#loading').remove();
@@ -139,7 +139,8 @@ $(document).ready(function() {
     colorTheme[colors[i]] = id_array[i];
   }
   
-  mymap = new GeoVizMap(new LeafletMap(data, L, map), $('#foreground'), {
+  var foreground = $('#foreground').attr("id", uuid); 
+  mymap = new GeoVizMap(new LeafletMap(data, L, map), foreground, {
     "color_theme": colorTheme, 
     "hratio": 1,
     "vratio": 1,
@@ -162,6 +163,9 @@ $(document).ready(function() {
     var offsetY = -np.y + op.y;
     mymap.update({"offsetX":offsetX, "offsetY":offsetY});
   });
+  
+  mapDict[uuid] = mymap;
+  
   // fill content of color-selector
   $.each(colorbrewer, function(k,v){
     $('#color-selector')
@@ -204,7 +208,7 @@ $(document).ready(function() {
 </td></tr>
 <tr><td>
 <div id="map-container" style="position: relative; align:center; border: 0px solid red;height: 100%;position: relative;">
-  <div id="map" style="align:center; margin-top:0px;border: 0px solid red;width: 800px;height:500px;">
+  <div id="map" style="align:center; margin-top:0px;border: 0px solid red;width: 800px;height:600px;">
   </div>
   <canvas id="foreground" style="position: absolute; top: 0; left: 0;width: 100%; height: 100%"></canvas>
 </div>

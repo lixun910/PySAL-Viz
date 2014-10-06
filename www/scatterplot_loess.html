@@ -64,26 +64,21 @@ var science = { stats: {} };
 <script src="js/loess.js" charset="utf-8"></script>
 <script>
 var svg;
-
+var plotDict = {};
 $(document).ready(function() {
 
   //////////////////////////////////////////////////////////////
   // Local Storage Brushing/Linking
   //////////////////////////////////////////////////////////////
-  localStorage.clear();
+  
   $(window).bind('storage', function(e) {
-    var uuid = localStorage.getItem('HL_LAYER');
-    
-    var select_ids = localStorage.getItem('HL_IDS').split(",");
-    if ( select_ids.length > 0) {
-      d3.selectAll("rect").each(function(d) { d.selected = false; });
-      var points = d3.selectAll("rect")[0];
-      for ( var i=0; i<select_ids.length; i++ ) {
-        $(points[select_ids[i]]).attr("class", "point selected"); 
-      }
+    var hl_ids = JSON.parse(localStorage.getItem('HL_IDS'));
+    for ( var uuid in hl_ids ) {
+      var ids = hl_ids[uuid];
+      highlight(ids);
     }
   });
-  
+   
   //////////////////////////////////////////////////////////////
   // Create Scatter Plot with LOESS
   //////////////////////////////////////////////////////////////
@@ -91,18 +86,15 @@ $(document).ready(function() {
       uuid = msg.uuid, //getParameterByName("uuid"),
       title = msg.title,
       fields = msg.fields,
-      layerDict = window.opener.layerDict,
+      json = window.opener.dataDict[uuid],
       selected = [];
    
-  localStorage["HL_LAYER"] = uuid;
   var svg_w = 800, 
       svg_h = 500;
       
   //window.opener.tempMsg = undefined;
   console.log(msg);  
-  if ( uuid in layerDict && fields.length == 2) {
-    var layer = layerDict[uuid];
-    var json = layer.data;
+  if ( json && fields.length == 2) {
     var data = [], data_copy = [], data_dict=[], data_map=[];
     
     json.features.forEach( function(feat,i ) {
@@ -193,16 +185,16 @@ $(document).ready(function() {
     hbuffer.width = document.getElementById('foreground').width;
     hbuffer.height = document.getElementById('foreground').height;
     var hctx = hbuffer.getContext('2d');
-    hctx.strokeStyle = "rgba(255,0,0,1)";
-    hctx.fillStyle = "rgba(255,0,0,1)";
+    hctx.strokeStyle = "rgba(255,255,0,1)";
+    hctx.fillStyle = "rgba(255,255,0,1)";
     
     for (var i=0, n=data.length; i< n; i++ ) {
       var x = data[i][0], y = data[i][1];
       x = xMap(data[i]);
       y = yMap(data[i]);
       data_map.push([x, y]); 
-      background.fillRect(x, y, 2,2);
-      hctx.fillRect(x,y,2,2);
+      background.fillRect(x, y, 4,4);
+      hctx.fillRect(x,y,4,4);
     }
     
     var buffer = document.createElement("canvas");
@@ -304,6 +296,21 @@ $(document).ready(function() {
         background.drawImage(buffer, 0,0);
     }
   
+    function highlight(ids) {
+      var background = document.getElementById('background').getContext('2d');
+      background.strokeStyle = "rgba(255,0,0,1)";
+      background.fillStyle = "rgba(255,255,0,1)";
+      background.clearRect(0,0,width+1,height+1);
+      background.drawImage(buffer, 0,0);
+      for (var i=0, n=ids.length; i< n; i++ ) {
+        var id = ids[i];
+        var x = data[id][0], y = data[id][1];
+        x = xMap(data[i]);
+        y = yMap(data[i]);
+        background.fillRect(x, y, 4,4);
+      }
+    }
+    
     // Highlight the selected circles.
     function brush(p) {
       var e = brush.extent();
@@ -325,14 +332,20 @@ $(document).ready(function() {
      
       selected = [];
       search(quadtree, x0, y1, x1, y0);
-      
-      var hl = "";
-      for( var i=0, n=selected.length; i<n; i++ ) {
-        var idx = selected[i];
-        //foreground.fillRect(data_map[idx][0], data_map[idx][1], 2, 2);
-        hl = hl + idx + ","
+
+            
+      // clean up select rect since it's ids only
+      if (localStorage["HL_MAP"] ) {
+        hm = JSON.parse(localStorage["HL_MAP"]);
+        delete hm[uuid];
+        localStorage["HL_MAP"] = JSON.stringify(hm);
       }
-      localStorage.setItem('HL_IDS', hl);
+      var hl = {};
+      if ( localStorage["HL_IDS"] ){ 
+        hl = JSON.parse(localStorage["HL_IDS"]);
+      }
+      hl[uuid] = selected;
+      localStorage["HL_IDS"] = JSON.stringify(hl);
     }
   
     // If the brush is empty, select all circles.

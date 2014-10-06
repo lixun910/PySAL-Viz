@@ -42,10 +42,13 @@ var mapDict = {};
 var plotDict = {};
 var dataDict = {};
 
+var popupWins = [];
+
 var socket;
 var tempMsg;
 
 $(document).ready(function() {
+  localStorage.clear();
   //////////////////////////////////////////////////////////////
   // Local Storage Brushing/Linking
   //////////////////////////////////////////////////////////////
@@ -82,12 +85,9 @@ $(document).ready(function() {
         tempMsg = msg;
         console.log(msg);
         switch ( msg.command ) {
-          case "check_active":
-            var uuid = msg["uuid"];
-            if ($('#'+uuid).length > 0){
-              socket.send('{"command":"check_active", "response":"OK"}');
-            } else {
-              socket.send('{"command":"check_active", "response":"FAIL"}');
+          case "close_all":
+            for (var i=0,n=popupWins.length; i<n; i++) {
+              popupWins[i].close();
             }
             break;
           case "add_layer":
@@ -106,11 +106,18 @@ $(document).ready(function() {
             break;
           case "get_selected":
             var uuid = msg["uuid"];
-            if (uuid == localStorage.getItem('HL_LAYER')) {
-              var select_ids = localStorage.getItem('HL_IDS');
-              var rsp = '{"uuid":"'+uuid+'","ids":"'+select_ids+'"}';
-              socket.send(rsp);
+            var select_ids = "";
+            if (localStorage.getItem('HL_IDS')) {
+              var hl_ids = JSON.parse(localStorage.getItem('HL_IDS'));
+              if ( uuid in hl_ids) {
+                var ids = hl_ids[uuid];
+                for (var i=0, n=ids.length; i<n; i++ ) {
+                  select_ids += ids[i] + ",";
+                }
+              }
             }
+            var rsp = '{"uuid":"'+uuid+'","ids":"'+select_ids+'"}';
+            socket.send(rsp);
             break;
           case "classless_map":
             break;
@@ -213,6 +220,7 @@ var quantile_map = function(o) {
     "_blank",
     "width=600, height=500, scrollbars=yes"
   );
+  popupWins.push(w);
   //The layerDict can be accessed by quantile_map pop-up window.
   //The newly creately quantile map will be added to layerDict[uuid].maps.
 };
@@ -224,6 +232,7 @@ var lisa_map = function(o) {
     "_blank",
     "width=600, height=500, scrollbars=yes"
   );
+  popupWins.push(w);
 };
 
 var leaflet_map = function(o) {
@@ -233,6 +242,7 @@ var leaflet_map = function(o) {
     "_blank",
     "width=900, height=700, scrollbars=yes"
   );
+  popupWins.push(w);
 };
 
 /*
@@ -244,6 +254,7 @@ var moran_scatter_plot = function(o) {
     "_blank",
     "width=800, height=700, scrollbars=yes"
   );
+  popupWins.push(w);
   //The newly creately scatter plot will be added to layerDict[uuid].plots.
 };
 
@@ -253,6 +264,7 @@ var scatter_plot = function(o) {
     "_blank",
     "width=900, height=650, scrollbars=yes"
   );
+  popupWins.push(w);
   //The newly creately scatter plot will be added to layerDict[uuid].plots.
 };
 var scatter_plot_matrix = function(o) {
@@ -261,6 +273,7 @@ var scatter_plot_matrix = function(o) {
     "_blank",
     "width=600, height=500, scrollbars=yes"
   );
+  popupWins.push(w);
   //The newly creately scatter plot will be added to layerDict[uuid].plots.
 };
 
@@ -270,25 +283,30 @@ var cartodb_mymap = function(msg) {
     "_blank",
     "width=600, height=500, scrollbars=yes"
   );
+  popupWins.push(w);
   //The newly creately scatter plot will be added to layerDict[uuid].plots.
 };
-/*
-The message for brushing/linking contains 1) layer uuid, 2) data.
-The data could be a list of highlighted object ids, e.g. [1,3,5,6,7..]
+
+//The message for brushing/linking contains 1) layer uuid, 2) data.
+//The data could be a list of highlighted object ids, e.g. [1,3,5,6,7..]
 var select = function(o) {
-  for(var uuid in layerDict) {
-    if ( uuid == o.uuid ) { 
-      var basemap = layerDict[uuid].basemap;
-      console.log(basemap, o.data);
-      basemap.highlight(o.data);
-      for(var map in layerDict[uuid].maps) {
-        map.highlight(o.data);
-      }
-      for(var plot in layerDict[uuid].plots) {
-        plot.highlight(o.data);
-      }
+  var hl_ids = JSON.parse(localStorage.getItem('HL_IDS')),
+      hl_ext = JSON.parse(localStorage.getItem('HL_MAP'));
+  if (!hl_ids) hl_ids = {};
+  if (!hl_ext) hl_ext = {};
+  var uuid = o.uuid;
+  if (uuid in mapDict ) {
+    var map = mapDict[uuid];
+    var ids = o.data;
+    
+    if ( hl_ext && uuid in hl_ext ) {
+      map.highlightExt(ids, hl_ext[uuid]);
+    } else {
+      map.highlight(ids);
     }
+    hl_ids[uuid] = ids;
   }
+  localStorage['HL_IDS'] = JSON.stringify(hl_ids)
 };
 
 var clear_select = function(o) {
@@ -303,7 +321,6 @@ var clear_select = function(o) {
     }
   }
 };
-*/
 </script>
 </head>
 
