@@ -132,5 +132,5 @@ def test_network():
 
     d3viz.close_all()
     
-#test_cartodb()
-test_network()
+test_cartodb()
+#test_network()

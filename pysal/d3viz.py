@@ -774,6 +774,9 @@ def cartodb_drop_table(table_name):
     content = r.json()    
    
 def cartodb_lisa(local_moran, new_lisa_table):
+    """
+    add a csv table with LISA clusters, using cartodb_id to join table
+    """
     import StringIO
     lisa = local_moran.q
     for i,v in enumerate(local_moran.p_sim):

@@ -60,7 +60,7 @@ $(document).ready(function() {
   var canvas = $('<canvas id="test" ></canvas>')
     .appendTo($('#map-container'));
   var start = new Date().getTime();
-  d3.json("seg_road_G.geojson", function(error, json) {
+  d3.json("chicago.geojson", function(error, json) {
     map = new GeoVizMap(new JsonMap(json), canvas); 
     var end = new Date().getTime();
     var time = end - start;
