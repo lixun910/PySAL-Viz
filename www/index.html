@@ -183,6 +183,8 @@ var add_layer = function(o){
     
     d3.json(json_path, function(data) {
       map.addLayer(uuid, new JsonMap(data)); 
+      mapDict[uuid] = map;
+      dataDict[uuid] = data;
     });
     
   } else {

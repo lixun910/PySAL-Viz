@@ -52,9 +52,9 @@ $(document).ready(function() {
       bins = msg.bins,
       k = id_array.length,
       colors = colorbrewer.YlGn[k],
-      type = getParameterByName("type");
-  uuid = msg.uuid, //getParameterByName("uuid"),
-  json = window.opener.dataDict[uuid];
+      type = getParameterByName("type"),
+      uuid = msg.uuid, //getParameterByName("uuid"),
+     json = window.opener.dataDict[uuid];
   //window.opener.tempMsg = undefined;
  
   if (type == "lisa") {

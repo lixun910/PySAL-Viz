@@ -326,6 +326,7 @@ def setup(restart=True):
         if sys.platform == 'win32':
             os.chdir(www_path)
             subprocess.Popen([sys.executable, http_path], shell=True)
+            os.chdir(os.path.split(current_path)[0])
         else:
             script = "cd %s && python %s" % (www_path, http_path)
             subprocess.Popen([script], shell=True)
@@ -668,8 +669,10 @@ def cartodb_get_data(table_name, fields=[],loc=None):
     
     for filename in os.listdir(loc):
         if filename.startswith("cartodb-query"):
-            os.rename(loc+filename, loc+table_name + filename[-4:])
-    return loc + table_name + ".shp"
+            oldname = os.path.join(loc, filename)
+            newname = os.path.join(loc, table_name + filename[-4:])
+            os.rename(oldname, newname)
+    return os.path.join(loc, table_name + ".shp")
 
 def cartodb_get_mapid():
     global CARTODB_API_KEY, CARTODB_DOMAIN
@@ -693,8 +696,11 @@ def cartodb_show_maps(shp, css=None, uuid=None, layers=[]):
     tables.append(table)        
     
     for layer in layers:
-        table_name = getuuid(layer['shp'])
-        table = {'name':table_name, 'type':cartodb_get_geomtype(layer)}
+        subshp = layer['shp']
+        table_name = getuuid(subshp)
+        if table_name[0].isdigit():
+            table_name = "table_" + table_name
+        table = {'name':table_name, 'type':cartodb_get_geomtype(subshp)}
         if 'css' in layer:
             css = layer['css']
             table["css"] = css            
@@ -777,10 +783,12 @@ def cartodb_lisa(local_moran, new_lisa_table):
         os.remove(zp_loc)
     except:
         pass
+    orig_loc = os.path.split(os.path.realpath(__file__))[0]
     os.chdir(loc)
     zp = zipfile.ZipFile("upload.zip","w")
     zp.write(new_lisa_table+".csv")
     zp.close()
+    os.chdir(orig_loc)
 
     import requests
     # delete existing lisa_table 
@@ -827,6 +835,8 @@ def cartodb_quantile_map(shp, var, k, uuid=None):
     table = uuid
     if table == None:
         table = getuuid(shp)
+        if table[0].isdigit():
+            table = "table_" + table
        
     dbf = R_SHP_DICT[table]['dbf']
     y = dbf.by_col[var]
@@ -858,6 +868,8 @@ def cartodb_show_lisa_map(shp, lisa_table, uuid=None, layers=[]):
     base_table = uuid
     if base_table == None:
         base_table = getuuid(shp)
+        if base_table[0].isdigit():
+            base_table = "table_" + base_table
         
     lisa_sql = 'SELECT a.the_geom_webmercator,a.cartodb_id,b.lisa FROM %s AS a, %s AS b WHERE a.cartodb_id=b.cartodb_id' % (base_table, lisa_table)
     
@@ -867,8 +879,11 @@ def cartodb_show_lisa_map(shp, lisa_table, uuid=None, layers=[]):
     ]
     
     for layer in layers:
-        table_name = getuuid(layer['shp'])
-        table = {'name':table_name, 'type':cartodb_get_geomtype(layer)}
+        subshp = layer['shp']
+        table_name = getuuid(subshp)
+        if table_name[0].isdigit():
+            table_name = "table_" + table_name
+        table = {'name':table_name, 'type':cartodb_get_geomtype(subshp)}
         if 'css' in layer:
             css = layer['css']
             table["css"] = css            
@@ -880,7 +895,10 @@ def cartodb_show_lisa_map(shp, lisa_table, uuid=None, layers=[]):
 def cartodb_table_exists(shp):
     import requests
     uuid = getuuid(shp)
-    table_names = [uuid, "table_" + uuid]
+    if uuid[0].isdigit():
+        uuid = "table_" + uuid
+        
+    table_names = [uuid]
     for tbl_name  in table_names:
         sql = 'SELECT count(cartodb_id) FROM %s' % (tbl_name)
         url = 'https://%s.cartodb.com/api/v1/sql' % CARTODB_DOMAIN
@@ -911,6 +929,7 @@ def zipshapefiles(shp):
     shutil.copy(shxPath, new_shxPath)
     shutil.copy(prjPath,  new_prjPath)
   
+    orig_loc = os.path.split(os.path.realpath(__file__))[0]
     os.chdir(prefix) 
     ziploc = os.path.join(prefix, "upload.zip")
     try:
@@ -928,7 +947,7 @@ def zipshapefiles(shp):
     myzip.write(os.path.split(new_dbfPath)[1])
     myzip.write(os.path.split(new_prjPath)[1])
     myzip.close()
-  
+    os.chdir(orig_loc)
     #for path in [new_shpPath, new_shxPath, new_dbfPath, new_prjPath]: 
     #    os.remove(path) 
     return ziploc
@@ -1014,59 +1033,3 @@ def cartodb_count_pts_in_polys(poly_tbl, pt_tbl, count_col_name):
 # Network
 #
 #################################################
-
-if __name__ == '__main__':
-            
-    setup()
-    
-    setup_cartodb("340808e9a453af9680684a65990eb4eb706e9b56","lixun910")
-    
-    #cartodb_quantile_map(road_shp, 'cnt', 5, uuid=road_table)
-    
-    shp_path = "../test_data/sfpd_plots.shp"
-    plots_shp = pysal.open(shp_path)
-    plots_dbf = pysal.open(shp_path[:-3]+"dbf") 
-    
-    plot_table = cartodb_upload(plots_shp)
-    crime_table = cartodb_upload(crime_shp)
-   
-    show_map(plots_shp) 
-    
-    get_selected(plots_shp)
-    
-    shp_path = "../test_data/sf_cartheft.shp"
-    crime_shp = pysal.open(shp_path)
-    crime_dbf = pysal.open(shp_path[:-3]+"dbf")
-
-    show_map(crime_shp)
-    
-    
-    cartodb_show_maps(plots_shp, layers=[crime_shp])
-    cartodb_show_maps(plots_shp, layers=[crime_shp], 
-                      styles={crime_shp:d3viz.CARTO_CSS_POINT})
-    
-    count_col_name = "crime_cnt" 
-    #counting points in polygon and save results to a new col in polygon table
-    cartodb_count_pts_in_polys(plot_table, crime_table, count_col_name)
-    
-    # download data for LISA 
-    shp_path = cartodb_get_data(plot_table, [count_col_name])
-   
-    # run LISA 
-    count_shp = pysal.open(shp_path)
-    count_dbf = pysal.open(shp_path[:-3]+"dbf") 
-    w = pysal.rook_from_shapefile(shp_path)
-   
-    LISA_table = "cartheft_lisa" 
-    LISA_table = cartodb_lisa(\
-        count_shp, count_dbf, w, count_col_name, plot_table, LISA_table)
-    
-    cartodb_show_lisa_map(plot_table, LISA_table)
-    
-    # add more layers
-    cartodb_show_lisa_map(plot_table, LISA_table, layers=[
-        {'name':crime_table, 'type':'point'}, 
-    ])
-    cartodb_show_lisa_map(plot_table, LISA_table, layers=[
-        {'name':crime_table, 'type':'point','css': CARTO_CSS_POINT_CLOUD}, 
-    ])
