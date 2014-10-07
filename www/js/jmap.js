@@ -1,6 +1,41 @@
 // Author: xunli at asu.edu
 (function(window,undefined){
 
+  var GColor = function( r, g, b, a ) {
+    if ( isNaN(r) ) {
+      this.r = parseInt((this.cutHex(r)).substring(0,2),16);
+      this.g = parseInt((this.cutHex(r)).substring(2,4),16);
+      this.b = parseInt((this.cutHex(r)).substring(4,7),16);
+      this.a = 255;
+    } else {
+      this.r = r;
+      this.g = g;
+      this.b = b;
+      this.a = a;
+      if (!a) this.a = 1;
+    }
+  };
+ 
+  GColor.prototype = {
+    cutHex: function(h) {
+      return (h.charAt(0)=="#") ? h.substring(1,7):h;
+    },
+    toString: function() {
+      return "rgba(" + this.r|0 + "," + this.g|0 + "," + this.b|0 + "," + this.a + ")";
+    },
+    toRGB: function(bg) {
+      if (!bg) {
+        bg = new GColor(255,255,255,1);
+      }
+      var a = this.a;
+      return new GColor(
+          (1 - a) * bg.r + a * this.r,
+          (1 - a) * bg.g + a * this.g,
+          (1 - a) * bg.b + a * this.b
+      );
+    },
+  };
+  
   var GPoint = function( x, y ) {
     this.x = x;
     this.y = y;
@@ -379,10 +414,10 @@
     if (!this.hratio) this.hratio = 0.8;
     if (!this.vratio) this.vratio = 0.8;
     // private members
-    this.HLT_BRD_CLR = "#CCC";
-    this.HLT_CLR = "yellow";
-    this.STROKE_CLR = "#CCC";
-    this.FILL_CLR = "green";
+    this.HLT_BRD_CLR = "#CCCCCC";
+    this.HLT_CLR = "#FFFF00";
+    this.STROKE_CLR = "#CCCCCC";
+    this.FILL_CLR = "#00FF00";
     this.LINE_WIDTH = 1;
     this.ALPHA = params ? params['alpha'] : 1;
     if (!this.ALPHA) this.ALPHA = 1;
@@ -507,9 +542,9 @@
       context = _self.mapcanvas.getContext("2d");
       context.imageSmoothingEnabled= false;
       context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
-      context.globalAlpha = 1;
+      context.globalAlpha = 0.1;
       context.drawImage( _self.buffer, 0, 0);
-      context.globalAlpha = _self.ALPHA;
+      context.globalAlpha = 1;
       
       if ( ids.length == 0) {
         return;
@@ -567,15 +602,17 @@
       }
       context.closePath();
       context.clip();
-      context.globalAlpha = 1;
-      context.drawImage( _self.hbuffer, 0, 0);
-      context.restore();
-      _self.highlight(hdraw, context);
+      
+      context.drawImage( _self.buffer, 0, 0);
       if (_self.noForeground) {
-        _self.drawSelect(ddraw, context,"invisible");
+        _self.drawSelect(ddraw, context, "invisible");
       } else {
-        _self.drawSelect(ddraw, context);
+        _self.drawSelect(ddraw, context, "unhighligh");
       }
+      context.restore();
+      
+      //_self.highlight(hdraw, context);
+      _self.drawSelect(hdraw, context);
       
      if (linking) {
         context.beginPath();
@@ -629,6 +666,7 @@
               ctx.lineTo(x, y);
             }
           }
+          ctx.closePath();
           ctx.fill();
           ctx.stroke();
         } 
@@ -657,6 +695,7 @@
                 ctx.lineTo(x, y);
               }
             }
+            ctx.closePath();
             ctx.fill();
             ctx.stroke();
           }
@@ -776,7 +815,6 @@
     }, 
     
     drawSelect: function( ids, context, invisible) {
-      context.globalAlpha = 0.6;
       var ids_dict = {};     
       for ( var i=0, n=ids.length; i<n; i++ ) {
         ids_dict[ids[i]] = 1;
@@ -793,12 +831,25 @@
               new_ids.push(oid);
             }
           }
+          if (invisible == "unhighligh") {
+            var old_c = new GColor(c);
+            old_c.a = "0.1";
+            var new_c = old_c.toRGB(); 
+            c = new_c.toString();
+          }
           colors[c] = new_ids;
         }
       } else {
-        colors[_self.FILL_CLR] = ids;
+        var c = _self.FILL_CLR;
+        if (invisible == "unhighligh") {
+          var old_c = new GColor(c);
+          old_c.a = "0.1";
+          var new_c = old_c.toRGB(); 
+          c = new_c.toString();
+        }
+        colors[c] = ids;
       }
-      if (invisible) {
+      if (invisible == "invisible") {
         colors = {};
         colors["rgba(255,255,255,0.2)"] = ids;
       }
@@ -881,7 +932,7 @@
         context.drawImage( _self.buffer, 0, 0);
         _self.brushRect = undefined;
         _self.isBrushing = false;
-        context.globalAlpha = this.ALPHA;
+        //context.globalAlpha = this.ALPHA;
       }
     },
     OnMouseMove: function(evt) {

@@ -1,7 +1,7 @@
 import pysal
 import numpy as np
 import os.path
-import json, shutil, webbrowser, md5, subprocess, re, threading, sys
+import json, shutil, webbrowser, md5, subprocess, re, threading, sys, random, string
 from uuid import uuid4
 from websocket import create_connection
 import shapefile
@@ -72,7 +72,10 @@ CARTO_CSS_LISA_LINE = ('#layer { '
                   '#layer[lisa="2"]{line-color: lightsalmon;}'
                   '#layer[lisa="3"]{line-color: blue;}'
                   '#layer[lisa="4"]{line-color: lightblue;}')
-    
+
+def randomword(length):
+    return ''.join(random.choice(string.lowercase) for i in range(length))    
+
 class AnswerMachine(threading.Thread):
     """
     Handle commands sent from Web Pages
@@ -345,7 +348,7 @@ def setup(restart=True):
         
     sleep(1)
     global PORTAL
-    url = "http://127.0.0.1:8000/%s" % PORTAL
+    url = "http://127.0.0.1:8000/%s?%s" % (PORTAL, randomword(10)) 
     webbrowser.open_new(url)
     sleep(1)
     
