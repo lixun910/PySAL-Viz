@@ -17,6 +17,8 @@ def test_cartodb():
     
     d3viz.show_map(crime_shp)    
     
+    d3viz.quantile_map(plots_shp,'cartheft',5)
+    
     user_name = 'lixun910'
     api_key = '340808e9a453af9680684a65990eb4eb706e9b56'
     

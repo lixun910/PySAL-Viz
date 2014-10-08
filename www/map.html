@@ -35,7 +35,7 @@ $(document).ready(function() {
         var map = mapDict[uuid];
         var ids = hl_ids[uuid];
         console.log("highlight");
-        if ( uuid in hl_ext ) {
+        if ( uuid in hl_ext && hl_ext[uuid] ) {
           map.highlightExt(ids, hl_ext[uuid]);
         } else {
           map.highlight(hl_ids[uuid]);

@@ -20,8 +20,16 @@
     cutHex: function(h) {
       return (h.charAt(0)=="#") ? h.substring(1,7):h;
     },
+    _toHex: function(n) {
+      n = parseInt(n,10);
+     if (isNaN(n)) return "00";
+     n = Math.max(0,Math.min(n,255));
+     return "0123456789ABCDEF".charAt((n-n%16)/16)
+      + "0123456789ABCDEF".charAt(n%16);
+    },
     toString: function() {
-      return "rgba(" + this.r|0 + "," + this.g|0 + "," + this.b|0 + "," + this.a + ")";
+      //return "rgba(" + this.r|0 + "," + this.g|0 + "," + this.b|0 + "," + this.a + ")";
+      return "#"+this._toHex(this.r) + this._toHex(this.g) + this._toHex(this.b); 
     },
     toRGB: function(bg) {
       if (!bg) {
@@ -406,30 +414,38 @@
   // GeoVizMap
   //////////////////////////////////////////////////////////////
   var GeoVizMap = function(map, mapcanvas, params) {
+    // noForeground: don't draw the map , only for highlight
     this.noForeground = params ? params["noforeground"] : false;
     if (!this.noForeground) this.noForeground = false;
+    // color scheme
     this.color_theme = params ? params["color_theme"] : undefined;
+    // hratio: horizontal ratio of map width / screen width
     this.hratio = params ? params["hratio"] : 0.8;
-    this.vratio = params ? params["vratio"] : 0.8;
     if (!this.hratio) this.hratio = 0.8;
+    // vratio: verticle ratio of map height / screen height
+    this.vratio = params ? params["vratio"] : 0.8;
     if (!this.vratio) this.vratio = 0.8;
+    // alpha: draw the map with transparency
+    this.ALPHA = params ? params['alpha'] : 1;
+    if (!this.ALPHA) this.ALPHA = 1;
+    // highlight alpha: when highlight, the alpha of background map
+    this.HL_ALPHA = 0.4;
+    
     // private members
     this.HLT_BRD_CLR = "#CCCCCC";
     this.HLT_CLR = "#FFFF00";
     this.STROKE_CLR = "#CCCCCC";
-    this.FILL_CLR = "#00FF00";
+    this.FILL_CLR = "#006400";
     this.LINE_WIDTH = 1;
-    this.ALPHA = params ? params['alpha'] : 1;
-    if (!this.ALPHA) this.ALPHA = 1;
   
     this.mapcanvas = mapcanvas instanceof jQuery ? mapcanvas[0] : mapcanvas;
     this.mapcanvas.width = this.mapcanvas.parentNode.clientWidth * this.hratio;
     this.mapcanvas.height = this.mapcanvas.parentNode.clientHeight * this.vratio;
-    
+   
     this.map = map;
-    this.layers = {};
     this.shpType = this.map.shpType; 
-    
+    // multi-layer support 
+    this.layers = {};
     
     _self = this;
     
@@ -462,34 +478,24 @@
     if ( !this.noForeground ) {
       this.draw(this.mapcanvas.getContext("2d"), this.color_theme);
     }   
-    // draw highlight map on hbuffer
-    this.hbuffer = document.createElement("canvas");
-    this.hbuffer.width = this.mapcanvas.width;
-    this.hbuffer.height = this.mapcanvas.height;
-    this.draw(this.hbuffer.getContext("2d"), undefined, this.HLT_CLR);
-   
+    
     this.buffer = this.createBuffer(this.mapcanvas);
   };
-  
-  // multi constructors
-  //GeoVizMap.fromComponents = function(geojson_url, canvas) {};
-  //GeoVizMap.fromComponents = function(zipfile_url, canvas) {};
   
   // static variable
   GeoVizMap.version = "0.1";
   
-  // 
+  // member functions
   GeoVizMap.prototype = {
-    // member functions
     addLayer : function(uuid, map) {
       
       this.layers[uuid] = map;
       this.update(); 
     },
     
-    updateColor: function(colorbrewer_obj) {
+    updateColor: function(color_theme) {
       if ( !this.noForeground ) {
-        this.color_theme  = colorbrewer_obj;
+        this.color_theme  = color_theme;
         this.draw(this.mapcanvas.getContext("2d"), this.color_theme);
         this.buffer = this.createBuffer(this.mapcanvas);
       }
@@ -513,28 +519,19 @@
         context = _self.mapcanvas.getContext("2d");
         context.imageSmoothingEnabled= false;
         context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
+        if ( ids && ids.length > 0 ) {
+          context.globalAlpha = _self.HL_ALPHA;
+        }
         context.drawImage( _self.buffer, 0, 0);
-        context.lineWidth = 0.3;
+        context.globalAlpha = 1;
       } 
-      if (_self.shpType == "LineString" || _self.shpType == "Line") {
-        context.strokeStyle = _self.HLT_CLR;
-      } else {
-        context.strokeStyle = _self.STROKE_CLR;
-        context.fillStyle = _self.HLT_CLR;
-      }
-      
-      var screenObjs = this.map.screenObjects; 
-      var colors = {};
-      colors[this.HLT_CLR] =  ids;
-      
-      if (_self.shpType == "Polygon" || _self.shpType == "MultiPolygon") {
-        _self.drawPolygons( context, screenObjs, colors ); 
-      } else if (_self.shpType == "Point" || _self.shpType == "MultiPoint") {
-        _self.drawPoints( context, screenObjs, colors );
-      } else if (_self.shpType == "LineString" || _self.shpType == "Line") {
-        _self.drawLines( context, screenObjs, colors);
-      }
-      
+      context.lineWidth = 2;
+      context.STROKE_CLR = "#000000";
+      _self.drawSelect( ids, context );
+      context.lineWidth = 0.3;
+     
+      _self.selected = ids;
+      _self.triggerLink();
       return context;
     },
     
@@ -542,7 +539,9 @@
       context = _self.mapcanvas.getContext("2d");
       context.imageSmoothingEnabled= false;
       context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
-      context.globalAlpha = 0.1;
+      if ( ids && ids.length> 0 ) { 
+        context.globalAlpha = _self.HL_ALPHA;
+      }
       context.drawImage( _self.buffer, 0, 0);
       context.globalAlpha = 1;
       
@@ -602,6 +601,11 @@
       }
       context.closePath();
       context.clip();
+      // change stroke color to match transparent color
+      var old_stroke_c = new GColor(_self.STROKE_CLR);
+      old_stroke_c.a = _self.HL_ALPHA;
+      var new_stroke_c = old_stroke_c.toRGB();
+      context.strokeStyle = new_stroke_c;
       
       context.drawImage( _self.buffer, 0, 0);
       if (_self.noForeground) {
@@ -611,33 +615,41 @@
       }
       context.restore();
       
+      context.strokeStyle = new_stroke_c;
       //_self.highlight(hdraw, context);
       _self.drawSelect(hdraw, context);
       
-     if (linking) {
-        context.beginPath();
-        context.rect( startX, startY, w, h);
-        context.fillStyle = "rgba(255,255,255,0)";
-        context.strokeStyle = "black";
-        context.stroke();
-        context.closePath();
-        
-        // trigger to brush/link
-        var hl = {};
-        if ( localStorage["HL_IDS"] ){ 
-          hl = JSON.parse(localStorage["HL_IDS"]);
-        }
-        hl[_self.mapcanvas.id] = _self.selected;
-        localStorage["HL_IDS"] = JSON.stringify(hl);
-       
+       if (linking) {
+          context.beginPath();
+          context.rect( startX, startY, w, h);
+          context.fillStyle = "rgba(255,255,255,0)";
+          context.strokeStyle = "#000000";
+          context.stroke();
+          context.closePath();
+         
+          var hl_range = [x0, y0, x1, y1];
+          _self.triggerLink(hl_range);
+      }
+      return true;
+    },
+    
+    triggerLink: function(highlight_range) {
+      // trigger to brush/link
+      var hl = {};
+      if ( localStorage["HL_IDS"] ){ 
+        hl = JSON.parse(localStorage["HL_IDS"]);
+      }
+      hl[_self.mapcanvas.id] = _self.selected;
+      localStorage["HL_IDS"] = JSON.stringify(hl);
+    
+      if ( highlight_range ) { 
         var hl_map = {}; 
         if ( localStorage["HL_MAP"] ){ 
           hl_map = JSON.parse(localStorage["HL_MAP"]);
         }
-        hl_map[_self.mapcanvas.id] = [x0, y0, x1, y1];
+        hl_map[_self.mapcanvas.id] = highlight_range;
         localStorage["HL_MAP"] = JSON.stringify(hl_map);
-    }
-      return true;
+      }
     },
     
     drawPolygons: function(ctx, polygons, colors) {
@@ -666,7 +678,6 @@
               ctx.lineTo(x, y);
             }
           }
-          ctx.closePath();
           ctx.fill();
           ctx.stroke();
         } 
@@ -695,7 +706,6 @@
                 ctx.lineTo(x, y);
               }
             }
-            ctx.closePath();
             ctx.fill();
             ctx.stroke();
           }
@@ -778,7 +788,7 @@
     draw: function(context,  colors, fillColor, strokeColor, lineWidth) {
       context.imageSmoothingEnabled= false;
       context.lineWidth = 0.3;
-      context.globalAlpha = this.ALPHA;
+      //context.globalAlpha = this.ALPHA;
       if (_self.shpType == "LineString" || _self.shpType == "Line") {
         context.strokeStyle = fillColor ? fillColor : _self.FILL_CLR;
         context.lineWidth = lineWidth ? lineWidth: _self.LINE_WIDTH;
@@ -833,7 +843,7 @@
           }
           if (invisible == "unhighligh") {
             var old_c = new GColor(c);
-            old_c.a = "0.1";
+            old_c.a = _self.HL_ALPHA;
             var new_c = old_c.toRGB(); 
             c = new_c.toString();
           }
@@ -843,7 +853,7 @@
         var c = _self.FILL_CLR;
         if (invisible == "unhighligh") {
           var old_c = new GColor(c);
-          old_c.a = "0.1";
+          old_c.a = _self.HL_ALPHA;
           var new_c = old_c.toRGB(); 
           c = new_c.toString();
         }
@@ -884,11 +894,6 @@
       if ( !this.noForeground ) {
         _self.draw(_self.mapcanvas.getContext("2d"), _self.color_theme);
       }   
-      
-      _self.hbuffer = document.createElement("canvas");
-      _self.hbuffer.width = _self.mapcanvas.width;
-      _self.hbuffer.height = _self.mapcanvas.height;
-      _self.draw(_self.hbuffer.getContext("2d"), undefined, _self.HLT_CLR);
      
       _self.buffer = _self.createBuffer(_self.mapcanvas);
     },
@@ -998,7 +1003,7 @@
           if ( localStorage["HL_MAP"] ){ 
             hl_map = JSON.parse(localStorage["HL_MAP"]);
           }
-          hl_map[_self.mapcanvas.id] = [0,0,0,0];
+          hl_map[_self.mapcanvas.id] = undefined;
           localStorage["HL_MAP"] = JSON.stringify(hl_map);
         }
         else if ( _self.isKeyDown == true ) {
