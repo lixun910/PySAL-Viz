@@ -53,10 +53,10 @@
   };
   
   var GRect = function( x0, y0, x1, y1 ) {
-    this.x0 = x0;
-    this.y0 = y0;
-    this.x1 = x1;
-    this.y1 = y1;
+    this.x0 = x0 <= x1 ? x0 : x1;
+    this.y0 = y0 <= y1 ? y0 : y1;
+    this.x1 = x0 > x1 ? x0 : x1;
+    this.y1 = y0 > y1 ? y0 : y1;
   };
   
   GRect.prototype = {
@@ -69,6 +69,12 @@
     },
     GetH: function() {
       return this.y1 - this.y0;
+    },
+    Move: function(offsetX, offsetY) {
+      this.x0 += offsetX;
+      this.x1 += offsetX;
+      this.y0 += offsetY;
+      this.y1 += offsetY;
     },
   };
 
@@ -526,28 +532,21 @@
         context.globalAlpha = 1;
       } 
       context.lineWidth = 2;
-      context.STROKE_CLR = "#000000";
+      context.strokeStyle = "#000000";
       _self.drawSelect( ids, context );
       context.lineWidth = 0.3;
+      context.strokeStyle = _self.STROKE_CLR;
      
       _self.selected = ids;
-      _self.triggerLink();
+      _self.triggerLink(ids);
       return context;
     },
     
     highlightExt: function( ids, extent, linking) {
-      context = _self.mapcanvas.getContext("2d");
-      context.imageSmoothingEnabled= false;
-      context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
-      if ( ids && ids.length> 0 ) { 
-        context.globalAlpha = _self.HL_ALPHA;
-      }
-      context.drawImage( _self.buffer, 0, 0);
-      context.globalAlpha = 1;
-      
-      if ( ids.length == 0) {
+      if ( ids.length == 0 && extent == undefined ) {
         return;
       }
+      
       var x0 = extent[0], y0 = extent[1], x1 = extent[2], y1 = extent[3];
       var pt0 = _self.map.mapToScreen(x0, y0),
           pt1 = _self.map.mapToScreen(x1, y1);
@@ -592,14 +591,19 @@
         return false;
       }
       
+      context = _self.mapcanvas.getContext("2d");
+      context.imageSmoothingEnabled= false;
+      context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
+      context.globalAlpha = _self.HL_ALPHA;
+      context.drawImage( _self.buffer, 0, 0);
+      context.globalAlpha = 1;
+      // save for clipping
       context.save();
+      // specify area for clipping
       context.beginPath();
-      if ( _self.isBrushing == true ) {
-        context.rect(startX, startY, _self.brushRect.GetW(), _self.brushRect.GetH());
-      } else {
-        context.rect( startX, startY, w, h);
-      }
+      context.rect( startX, startY, w, h);
       context.closePath();
+      // do clipping
       context.clip();
       // change stroke color to match transparent color
       var old_stroke_c = new GColor(_self.STROKE_CLR);
@@ -613,43 +617,43 @@
       } else {
         _self.drawSelect(ddraw, context, "unhighligh");
       }
+      // restore from clipping
       context.restore();
-      
+      // draw rest 
       context.strokeStyle = new_stroke_c;
       //_self.highlight(hdraw, context);
       _self.drawSelect(hdraw, context);
       
-       if (linking) {
-          context.beginPath();
-          context.rect( startX, startY, w, h);
-          context.fillStyle = "rgba(255,255,255,0)";
-          context.strokeStyle = "#000000";
-          context.stroke();
-          context.closePath();
-         
-          var hl_range = [x0, y0, x1, y1];
-          _self.triggerLink(hl_range);
+      context.beginPath();
+      context.strokeStyle = "#000000";
+      context.rect( startX, startY, w, h);
+      //context.fillStyle = "rgba(255,255,255,0)";
+      context.stroke();
+      context.closePath();
+      context.strokeStyle = _self.STROKE_CLR;
+      
+      if (linking) {
+        var hl_range = [x0, y0, x1, y1];
+        _self.triggerLink(_self.selected, hl_range);
       }
       return true;
     },
     
-    triggerLink: function(highlight_range) {
+    triggerLink: function(select_ids, highlight_range) {
       // trigger to brush/link
       var hl = {};
       if ( localStorage["HL_IDS"] ){ 
         hl = JSON.parse(localStorage["HL_IDS"]);
       }
-      hl[_self.mapcanvas.id] = _self.selected;
+      hl[_self.mapcanvas.id] = select_ids;//_self.selected;
       localStorage["HL_IDS"] = JSON.stringify(hl);
     
-      if ( highlight_range ) { 
-        var hl_map = {}; 
-        if ( localStorage["HL_MAP"] ){ 
-          hl_map = JSON.parse(localStorage["HL_MAP"]);
-        }
-        hl_map[_self.mapcanvas.id] = highlight_range;
-        localStorage["HL_MAP"] = JSON.stringify(hl_map);
+      var hl_map = {}; 
+      if ( localStorage["HL_MAP"] ){ 
+        hl_map = JSON.parse(localStorage["HL_MAP"]);
       }
+      hl_map[_self.mapcanvas.id] = highlight_range;
+      localStorage["HL_MAP"] = JSON.stringify(hl_map);
     },
     
     drawPolygons: function(ctx, polygons, colors) {
@@ -871,12 +875,6 @@
         _self.drawLines( context, screenObjs, colors );
       }
     },
-    clean: function() {
-      var context = _self.mapcanvas.getContext("2d");
-      context.imageSmoothingEnabled= false;
-      context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
-      return context;
-    },
     update: function(params) {
       if (params) {
         if (params['alpha']) this.ALPHA = alpha;
@@ -897,13 +895,20 @@
      
       _self.buffer = _self.createBuffer(_self.mapcanvas);
     },
+    resetDraw: function(e) {
+        var context = _self.mapcanvas.getContext("2d");
+        context.imageSmoothingEnabled= false;
+        context.globalAlpha = 1;
+        context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
+        context.drawImage( _self.buffer, 0, 0);
+    },
     // register mouse events of canvas
     OnResize: function( e) {
       _self.update();
       console.log("OnResize");
     },
     OnKeyDown: function( e ) {
-      if ( e.keyCode == 115 ) {
+      if ( e.keyCode == 83 ) {
         _self.isKeyDown = true;
       } else if ( e.keyCode = 77 ) {
         _self.mapcanvas.style.pointerEvents= 'none';  
@@ -911,7 +916,6 @@
     },
     OnKeyUp: function( e ) {
       if ( e.keyCode = 77 ) {
-        _self.mapcanvas;  
         _self.mapcanvas.style.pointerEvents= 'auto';  
       }
     },
@@ -930,47 +934,40 @@
       if (_self.brushRect == undefined ||
           _self.brushRect && !_self.brushRect.Contains(new GPoint(x, y)) ) {
         console.log("cancel brushing");
-        var context = _self.mapcanvas.getContext("2d");
-        context.imageSmoothingEnabled= false;
-        context.globalAlpha = 1;
-        context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
-        context.drawImage( _self.buffer, 0, 0);
         _self.brushRect = undefined;
         _self.isBrushing = false;
         //context.globalAlpha = this.ALPHA;
       }
     },
     OnMouseMove: function(evt) {
-      var x = evt.offsetX, y = evt.offsetY;
-      var startX, 
-          startY;
-          
       if ( _self.isMouseDown == true ) {
-        var context;
+        var currentX = evt.offsetX, 
+            currentY = evt.offsetY,
+            startX = _self.startX,
+            startY = _self.startY;
+         
+        var x0 = startX >= currentX ? currentX : startX;
+        var x1 = startX < currentX ? currentX : startX;
+        var y0 = startY >= currentY ? currentY : startY;
+        var y1 = startY < currentY ? currentY : startY;
+        
         if ( _self.isBrushing == true ) {
-          var offsetX = x - _self.startX,
-              offsetY = y - _self.startY;
-          startX = _self.brushRect.x0 + offsetX;
-          startY = _self.brushRect.y0 + offsetY;
-        } else {
-          startX = _self.startX;
-          startY = _self.startY;
-        }
-        // highlight selection
-        var pt0 = _self.map.screenToMap(startX, startY), 
-            pt1;
-        if ( _self.isBrushing == true ) {
-          pt1 = _self.map.screenToMap(startX + _self.brushRect.GetW(), 
-                                  startY + _self.brushRect.GetH());
-        } else {
-          pt1 = _self.map.screenToMap(x,y);
+          var offsetX = currentX - startX,
+              offsetY = currentY - startY;
+          x0 = _self.brushRect.x0 + offsetX;
+          x1 = _self.brushRect.x1 + offsetX;
+          y0 = _self.brushRect.y0 + offsetY;
+          y1 = _self.brushRect.y1 + offsetY;
         } 
-       
-        var x0 = pt0[0] <= pt1[0] ? pt0[0] : pt1[0];
-        var x1 = pt0[0] > pt1[0] ? pt0[0] : pt1[0];
-        var y0 = pt0[1] <= pt1[1] ? pt0[1] : pt1[1];
-        var y1 = pt0[1] > pt1[1] ? pt0[1] : pt1[1];
-        _self.highlightExt([1], [x0, y0, x1, y1], true);
+        var pt0 = _self.map.screenToMap(x0, y0), 
+            pt1 = _self.map.screenToMap(x1, y1);
+            
+        x0 = pt0[0] <= pt1[0] ? pt0[0] : pt1[0];
+        x1 = pt0[0] > pt1[0] ? pt0[0] : pt1[0];
+        y0 = pt0[1] <= pt1[1] ? pt0[1] : pt1[1];
+        y1 = pt0[1] > pt1[1] ? pt0[1] : pt1[1];
+        
+        _self.highlightExt([], [x0,y0,x1,y1], true);
       }
     },
     OnMouseUp: function(evt) {
@@ -982,33 +979,25 @@
           var pt = _self.map.screenToMap(x, y);
           x = pt[0];
           y = pt[1];
-          _self.map.bbox.forEach( function( box, i ) {
+          for ( var i=0, n=_self.map.bbox.length; i<n; i++ ) {
+            var box = _self.map.bbox[i];
             if ( x > box[0] && x < box[1] && 
                  y > box[2] && y < box[3] ) {
+              _self.isKeyDown = false;
+              _self.isBrushing = false;
+              _self.brushRect = undefined;
               _self.highlight([i]);
               _self.isMouseDown = false;
-              
               return;
             }
-          });
-          // trigger brush/link
-          var hl = {};
-          if ( localStorage["HL_IDS"] ){ 
-            hl = JSON.parse(localStorage["HL_IDS"]);
           }
-          hl[_self.mapcanvas.id] = [];
-          localStorage["HL_IDS"] = JSON.stringify(hl);
+          _self.resetDraw();
+          _self.triggerLink([], undefined);
           
-          var hl_map = {}; 
-          if ( localStorage["HL_MAP"] ){ 
-            hl_map = JSON.parse(localStorage["HL_MAP"]);
-          }
-          hl_map[_self.mapcanvas.id] = undefined;
-          localStorage["HL_MAP"] = JSON.stringify(hl_map);
-        }
-        else if ( _self.isKeyDown == true ) {
+        } else if ( _self.isKeyDown == true &&  _self.isBrushing == false) {
           // setup brushing box
           _self.brushRect = new GRect( _self.startX, _self.startY, x, y);
+          console.log(_self.brushRect.x0,_self.brushRect.x1,_self.brushRect.y0,_self.brushRect.y1);
         }
       }
       _self.isMouseDown = false;
