@@ -546,11 +546,13 @@
         context.lineWidth = 0.3;
         context.imageSmoothingEnabled= false;
         context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
+        if (!_self.noForeground) {
           if ( ids && ids.length > 0 ) {
             context.globalAlpha = _self.HL_ALPHA;
           }
           context.drawImage( _self.buffer, 0, 0);
           context.globalAlpha = 1;
+        }
       } 
     
       if (ids.length > 0) {

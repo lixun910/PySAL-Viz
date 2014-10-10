@@ -29,7 +29,7 @@ body > div {
 <script src="js/utils.js"></script>
 <script>
 
-var map, bins, colors;
+var map, dataDict = {}, mapDict = {}, bins, colors;
 
 $(document).ready(function() {
   //////////////////////////////////////////////////////////////
@@ -54,11 +54,14 @@ $(document).ready(function() {
   //////////////////////////////////////////////////////////////
   // Test Map
   //////////////////////////////////////////////////////////////
+  var uuid = "test";
   var canvas = $('<canvas id="test" ></canvas>')
     .appendTo($('#map-container'));
   var start = new Date().getTime();
   d3.json("chicago.geojson", function(error, json) {
     map = new GeoVizMap(new JsonMap(json), canvas); 
+    dataDict[uuid] = json;
+    mapDict[uuid] = map;
     var end = new Date().getTime();
     var time = end - start;
     alert('Execution time: ' + time);
