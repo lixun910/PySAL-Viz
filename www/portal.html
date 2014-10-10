@@ -116,7 +116,7 @@ body {
 </style>
 <script src="js/jquery.min.js"></script>
 <script src="js/d3.v3.min.js"></script>
-<script src="js/geoviz.js"></script>
+<script src="js/jmap.js"></script>
 <script src="js/utils.js"></script>
 <link rel="stylesheet" href="css/ui-lightness/jquery-ui-1.10.4.custom.min.css">
 <script src="js/jquery-ui-1.10.4.custom.min.js"></script>
@@ -140,6 +140,12 @@ layerDict
     ...
   }
 */
+
+var map;
+var mapDict = {};
+var plotDict = {};
+var dataDict = {};
+
 var layerDict = {};
 var socket;
 var tempMsg;
@@ -158,22 +164,20 @@ $(document).ready(function() {
   //////////////////////////////////////////////////////////////
   // Local Storage Brushing/Linking
   //////////////////////////////////////////////////////////////
-  localStorage.clear();
+  
   $(window).bind('storage', function(e) {
-    var uuid = localStorage.getItem('HL_LAYER');
-    
-    if ( uuid in layerDict ) {
-      var select_ids = localStorage.getItem('HL_IDS').split(",");
-      for ( var i=0; i<select_ids.length; i++ ) {
-        select_ids[i] = parseInt(select_ids[i]);
-      }
-      var layer = layerDict[uuid];
-      layer.basemap.highlight(select_ids, "nolinking");
-      for (var i=0, n=layer.maps.length; i< n; i++) {
-        layer.maps[i].highlight(select_ids, "nolinking");
-      }
-      for (var i=0, n=layer.plots.length; i< n; i++) {
-        layer.plots[i].highlight(select_ids, "nolinking");
+    var hl_ids = JSON.parse(localStorage.getItem('HL_IDS')),
+        hl_ext = JSON.parse(localStorage.getItem('HL_MAP'));
+    for ( var uuid in hl_ids ) {
+      if ( uuid in mapDict ) {
+        var map = mapDict[uuid];
+        var ids = hl_ids[uuid];
+        console.log("highlight");
+        if ( uuid in hl_ext ) {
+          map.highlightExt(ids, hl_ext[uuid]);
+        } else if ( uuid in hl_ids ) {
+          map.highlight(hl_ids[uuid]);
+        }
       }
     }
   });
@@ -200,6 +204,10 @@ $(document).ready(function() {
             break;
           case "rsp_spatial_regression":
             response_spatial_regression(msg);
+            break;
+          case "show_map":
+            show_map(msg);
+            socket.send('{"command":"show_map", "response":"OK"}');
             break;
           case "add_layer":
             add_layer(msg);
@@ -428,7 +436,7 @@ and they will communicate with each other using LocalStorage.
 If the user send "add_layer" command again with different data. This main page
 should stack the new layer as multi-layer scenario.
 */
-var add_layer = function(o){
+var show_map = function(o){
   var uuid = o.uuid;
   if ( "uuid" in o && $('#'+o["uuid"]).length ){
     // add layer in an existing map
@@ -441,17 +449,15 @@ var add_layer = function(o){
     });
     
   } else {
-    var json_path = uuid + ".json";
+    var json_path = "./tmp/" + uuid + ".json?"+Math.random().toString(36).substring(7);
     $('<canvas id="' + uuid + '" width=733 height=564></canvas>')
       .appendTo($('#map-container'));
+      
     d3.json(json_path, function(data) {
-      var basemap = new GeoVizMap(data, $('#'+uuid));
-      layerDict[uuid] = {
-        "data" : data, 
-        "basemap" : basemap,
-        "maps": [],
-        "plots": [],
-      };
+      map = new GeoVizMap(new JsonMap(data), $('#'+uuid));
+      mapDict[uuid] = map;
+      dataDict[uuid] = data;
+      
       // fill dialogs
       var tip = "Map UUID:"+uuid+". <br/>You can use this uuid in python to interact with maps.";
       $('#map-uuid').empty().html(tip);
