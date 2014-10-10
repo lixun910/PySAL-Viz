@@ -119,7 +119,10 @@ class NetworkCluster:
         f = open(jsonFileName)
         json_data = f.read()
         f.close()
-        return json.loads(json_data)
+        try:
+            return json.loads(json_data)
+        except:
+            return json.loads(unicode(json_data,'latin-1'))
     
     def SegmentNetwork(self, SEG_LENGTH):
         network_data = self.network_data
@@ -226,6 +229,7 @@ class NetworkCluster:
         # build a kd-tree for points on lines
         self.line_points = np.array(self.search_dict.keys())
         self.kd_line_points = ckdtree.cKDTree(self.line_points)
+        return len(self.segment_lines)
         
     def build_dict(self):
         search_dict = {}

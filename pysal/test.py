@@ -60,25 +60,30 @@ def test_cartodb():
     d3viz.close_all()
     
 def test_network():
-    from network_cluster import NetworkCluster
+    import pysal
+
+    road_shp = pysal.open('../test_data/man_road.shp')    
+    road_dbf = pysal.open('../test_data/man_road.dbf')    
     
-    roadJsonFile = '../test_data/man_road.geojson'
-    network = NetworkCluster(roadJsonFile)    
+    import d3viz
+    d3viz.setup()
+
+    d3viz.show_map(road_shp, rebuild=True)
+    
+    roadJsonFile = d3viz.get_json_path(road_shp)
+    
+    import network_cluster 
+    #roadJsonFile = '../test_data/man_road.geojson'
+    network = network_cluster.NetworkCluster(roadJsonFile)    
 
     # Segment the road network equally in 1,000 feet
     network.SegmentNetwork(1000) 
     
-    # Create a Queen Contiguity Weights based on the segmentation
-    #network.CreateWeights()    
-
-    # Export Weights to a GAL file
-    roadWFile = '../test_data/man_road.gal'
-    #network.ExportWeights(roadWFile)    
-    
     # Read into car accident points file
-    from network_cluster import GetJsonPoints
-    pointsJsonFile = "../test_data/man_points.geojson"
-    points = GetJsonPoints(pointsJsonFile)    
+    points_shp = pysal.open('../test_data/man_points.shp')
+    d3viz.add_layer(points_shp)
+    pointsJsonFile = d3viz.get_json_path(points_shp)
+    points = network_cluster.GetJsonPoints(pointsJsonFile)    
 
     # Snap these points to nearest road segment
     network.SnapPointsToNetwork(points)    
@@ -86,10 +91,12 @@ def test_network():
     # Export the counts of points on each road segment to a new ShapeFile
     road_count_file = "../test_data/man_seg_road.shp"    
     network.ExportCountsToShp(road_count_file)
+   
+    road_shp = pysal.open(road_count_file)    
+    d3viz.show_map(road_shp)    
+    d3viz.equal_interval_map(road_shp, 'cnt', 5)
     
     # Visualization with CartoDB
-    import d3viz
-    d3viz.setup()
     d3viz.setup_cartodb("340808e9a453af9680684a65990eb4eb706e9b56","lixun910")    
 
     # add a projection file, which is same with the points or road shape file
@@ -101,18 +108,16 @@ def test_network():
     
     # download the map with WGS84 projection
     # NOTE: this is required since brush/link with CartoDB requires WGS84 projection (only)
-    prj_road_count_file = d3viz.cartodb_get_data(road_table, fields=[], loc="../test_data/")
+    prj_road_count_file = d3viz.cartodb_get_data(road_table, fields=[],loc="../test_data/")
     print prj_road_count_file    
 
     # Use PySAL to do LISA analysis
-    import pysal
     
     road_shp = pysal.open(prj_road_count_file)
     road_dbf = pysal.open(prj_road_count_file[:-3] + "dbf")
-    road_w = pysal.open(roadWFile).read()    
-
+    
     # show the basic map
-    d3viz.show_map(road_shp, road_dbf, uuid=road_table)    
+    d3viz.show_map(road_shp, uuid=road_table, rebuild=True)    
 
     # show the map in CartoDB
     d3viz.cartodb_show_maps(road_shp, uuid=road_table)   
@@ -120,8 +125,16 @@ def test_network():
     # show quantile map in CartoDB
     d3viz.cartodb_quantile_map(road_shp, 'cnt', 5, uuid=road_table)    
 
+    # Create a Queen Contiguity Weights based on the segmentation
+    #network.CreateWeights()    
+
+    # Export Weights to a GAL file
+    roadWFile = '../test_data/man_road.gal'
+    #network.ExportWeights(roadWFile)    
+    
     # LISA
     import numpy as np
+    road_w = pysal.open(roadWFile).read()    
     y = np.array(road_dbf.by_col["cnt"])
     lm = pysal.Moran_Local(y, road_w)    
 
@@ -134,5 +147,5 @@ def test_network():
 
     d3viz.close_all()
     
+test_network()
 test_cartodb()
-#test_network()

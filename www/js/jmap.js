@@ -479,13 +479,17 @@
     window.addEventListener('keyup', this.OnKeyUp, true);
     window.addEventListener('resize', this.OnResize, true);
     
+    
     // draw map on Canvas
     this.map.fitScreen(this.mapcanvas.width, this.mapcanvas.height);
-    if ( !this.noForeground ) {
-      this.draw(this.mapcanvas.getContext("2d"), this.color_theme);
-    }   
     
-    this.buffer = this.createBuffer(this.mapcanvas);
+    this.buffer = this.createBuffer();
+    
+    this.draw(this.buffer.getContext("2d"), this.color_theme); 
+    
+    if ( !this.noForeground ) {
+      this.buffer2Screen();
+    }   
   };
   
   // static variable
@@ -502,43 +506,114 @@
     updateColor: function(color_theme) {
       if ( !this.noForeground ) {
         this.color_theme  = color_theme;
-        this.draw(this.mapcanvas.getContext("2d"), this.color_theme);
         this.buffer = this.createBuffer(this.mapcanvas);
+        this.draw(this.buffer.getContext("2d"), this.color_theme);
+        
+        if ( !this.noForeground ) {
+          this.buffer2Screen();
+        }   
+    
       }
     },
     
+    buffer2Screen: function() {
+      var context = _self.mapcanvas.getContext("2d");
+      context.imageSmoothingEnabled= false;
+      context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
+      context.drawImage(_self.buffer, 0, 0);
+      return context;
+    },
     // create buffer canvas
     createBuffer: function() {
       var _buffer = document.createElement("canvas");
       _buffer.width = this.mapcanvas.width;
       _buffer.height = this.mapcanvas.height;
-      var bufferCtx = _buffer.getContext("2d");
-      bufferCtx.drawImage(this.mapcanvas, 0, 0);
       return _buffer;
     },
-  
+    clean: function() {
+      var context = _self.mapcanvas.getContext("2d");
+      context.imageSmoothingEnabled= false;
+      context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
+      return context;
+    },  
+
+    old_highlight: function( ids, context, nolinking ) {
+      if ( ids == undefined ) 
+        return;
+        
+      if ( context == undefined) { 
+        context = _self.mapcanvas.getContext("2d");
+        context.lineWidth = 0.3;
+        context.imageSmoothingEnabled= false;
+        context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
+          if ( ids && ids.length > 0 ) {
+            context.globalAlpha = _self.HL_ALPHA;
+          }
+          context.drawImage( _self.buffer, 0, 0);
+          context.globalAlpha = 1;
+      } 
+    
+      if (ids.length > 0) {
+        var screenObjs = _self.map.screenObjects; 
+        var colors = {};
+        //colors["rgba(255,255,0,0.7)"] = ids;
+        var imageObj = new Image();
+        imageObj.onload = function() {
+          var fillPattern = context.createPattern(imageObj,'repeat'); 
+          context.strokeColor = "#000000";
+          context.lineWidth = 1;
+          var colors = {};
+          colors['dummy'] = ids;
+          
+          if (_self.shpType == "Polygon" || _self.shpType == "MultiPolygon") {
+            context.fillStyle = fillPattern;
+            _self.drawPolygons( context, screenObjs, colors);
+          } else if (_self.shpType == "Point" || _self.shpType == "MultiPoint") {
+            context.fillStyle = fillPattern;
+            _self.drawPoints( context, screenObjs, colors );
+          } else if (_self.shpType == "LineString" || _self.shpType == "Line") {
+            context.strokeStyle = fillPattern;
+            _self.drawLines( context, screenObjs, colors );
+          }
+          context.strokeStyle = _self.STROKE_CLR;
+          context.lineWidth = 0.3;
+          _self.selected = ids;
+          if ( nolinking ) {
+            _self.triggerLink(ids);
+          }
+        };
+        imageObj.src='http://127.0.0.1:8000/img/cross.png';
+      }
+    },
+    
     highlight: function( ids, context, nolinking ) {
       if ( ids == undefined ) 
         return;
         
       if ( context == undefined) { 
         context = _self.mapcanvas.getContext("2d");
+        context.lineWidth = 0.3;
         context.imageSmoothingEnabled= false;
         context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
-        if ( ids && ids.length > 0 ) {
-          context.globalAlpha = _self.HL_ALPHA;
+        if (!_self.noForeground) {
+          if ( ids && ids.length > 0 ) {
+            context.globalAlpha = _self.HL_ALPHA;
+          }
+          context.drawImage( _self.buffer, 0, 0);
+          context.globalAlpha = 1;
         }
-        context.drawImage( _self.buffer, 0, 0);
-        context.globalAlpha = 1;
       } 
-      context.lineWidth = 2;
-      context.strokeStyle = "#000000";
-      _self.drawSelect( ids, context );
-      context.lineWidth = 0.3;
-      context.strokeStyle = _self.STROKE_CLR;
-     
-      _self.selected = ids;
-      _self.triggerLink(ids);
+      
+      if (ids.length > 0) {
+        //context.lineWidth = 2;
+        context.strokeStyle = "#000000";
+        _self.drawSelect( ids, context );
+        //context.lineWidth = 0.3;
+        context.strokeStyle = _self.STROKE_CLR;
+       
+        _self.selected = ids;
+        _self.triggerLink(ids);
+      }
       return context;
     },
     
@@ -591,11 +666,19 @@
         return false;
       }
       
+      if (_self.noForeground) {
+        _self.old_highlight(_self.selected, undefined, true);
+        return;
+      }
+      
       context = _self.mapcanvas.getContext("2d");
       context.imageSmoothingEnabled= false;
+      context.lineWidth = 0.3;
       context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
       context.globalAlpha = _self.HL_ALPHA;
-      context.drawImage( _self.buffer, 0, 0);
+      if (!_self.noForeground) {
+        context.drawImage( _self.buffer, 0, 0);
+      }
       context.globalAlpha = 1;
       // save for clipping
       context.save();
@@ -612,14 +695,12 @@
       context.strokeStyle = new_stroke_c;
       
       context.drawImage( _self.buffer, 0, 0);
-      if (_self.noForeground) {
-        _self.drawSelect(ddraw, context, "invisible");
-      } else {
-        _self.drawSelect(ddraw, context, "unhighligh");
-      }
+      _self.drawSelect(ddraw, context, "unhighligh");
+      
       // restore from clipping
       context.restore();
       // draw rest 
+      context.globalAlpha = _self.ALPHA;
       context.strokeStyle = new_stroke_c;
       //_self.highlight(hdraw, context);
       _self.drawSelect(hdraw, context);
@@ -673,6 +754,8 @@
                     y = obj[j][k][1];
                 ctx.lineTo(x, y);
               }
+              ctx.fill();
+              ctx.stroke();
             }
           } else {
             ctx.moveTo(obj[0][0], obj[0][1]);
@@ -681,14 +764,16 @@
                   y = obj[k][1];
               ctx.lineTo(x, y);
             }
+            ctx.fill();
+            ctx.stroke();
           }
-          ctx.fill();
-          ctx.stroke();
         } 
       } else {
         for ( var c in colors ) {
           var ids = colors[c];
-          ctx.fillStyle = c;
+          if (c != "dummy") {
+            ctx.fillStyle = c;
+          }
           for ( var i=0, n=ids.length; i< n; ++i) {
             ctx.beginPath();
             var obj = polygons[ids[i]];
@@ -865,7 +950,7 @@
       }
       if (invisible == "invisible") {
         colors = {};
-        colors["rgba(255,255,255,0.2)"] = ids;
+        colors["rgba(255,255,255,0)"] = ids;
       }
       if (_self.shpType == "Polygon" || _self.shpType == "MultiPolygon") {
         _self.drawPolygons( context, screenObjs, colors);
@@ -889,18 +974,23 @@
       for (var uuid in _self.layers) {
         _self.layers[uuid].fitScreen(newWidth, newHeight);
       }
-      if ( !this.noForeground ) {
-        _self.draw(_self.mapcanvas.getContext("2d"), _self.color_theme);
+      _self.buffer = _self.createBuffer();
+      _self.draw(_self.buffer.getContext("2d"), _self.color_theme);
+      
+      if ( !_self.noForeground ) {
+        _self.buffer2Screen();
       }   
      
-      _self.buffer = _self.createBuffer(_self.mapcanvas);
     },
     resetDraw: function(e) {
         var context = _self.mapcanvas.getContext("2d");
+        context.lineWidth = 0.3;
         context.imageSmoothingEnabled= false;
         context.globalAlpha = 1;
         context.clearRect(0, 0, _self.mapcanvas.width, _self.mapcanvas.height);
-        context.drawImage( _self.buffer, 0, 0);
+        if ( !_self.noForeground) {
+          context.drawImage( _self.buffer, 0, 0);
+        }
     },
     // register mouse events of canvas
     OnResize: function( e) {

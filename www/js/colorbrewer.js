@@ -302,6 +302,6 @@ YlGn: {
 12: ["#8dd3c7","#ffffb3","#bebada","#fb8072","#80b1d3","#fdb462","#b3de69","#fccde5","#d9d9d9","#bc80bd","#ccebc5","#ffed6f"]
 },
 Lisa:{
-5: ['#fff','darkred','lightsalmon','darkblue','lightblue'],
+5: ['#ffffff','#E03531','#ECB0A6','#254BEF','#A8ABF5'],
 }
 };

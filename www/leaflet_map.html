@@ -38,7 +38,7 @@ $(document).ready(function() {
         console.log("highlight");
         if ( uuid in hl_ext ) {
           map.highlightExt(ids, hl_ext[uuid]);
-        } else {
+        } else if (uuid in hl_ids){
           map.highlight(hl_ids[uuid]);
         }
       }

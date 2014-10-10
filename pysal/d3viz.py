@@ -374,7 +374,7 @@ def shp2json(shp, rebuild=False, uuid=None):
         uuid = getuuid(shp)
     
     global R_SHP_DICT
-    if uuid not in R_SHP_DICT:
+    if uuid not in R_SHP_DICT or rebuild == True:
         R_SHP_DICT[uuid] = {"shp":None, "dbf":None,"json":None, "shp_path":""}
         dbf = pysal.open(shp.dataPath[:-3]+"dbf") 
         R_SHP_DICT[uuid]["shp"] = shp
@@ -396,21 +396,24 @@ def shp2json(shp, rebuild=False, uuid=None):
         field_names = [field[0] for field in fields]
         try:
             for i, sr in enumerate(reader.shapeRecords()):
-                field_names.append("GEODAID")
-                sr.record.append(i)
                 atr = dict(zip(field_names, sr.record))
+                atr["GEODAID"] = i
                 geom = sr.shape.__geo_interface__
                 buffer.append(dict(type="Feature", geometry=geom, properties=atr))
         except:
+            dbf = R_SHP_DICT[uuid]["dbf"]
             field_names = dbf.header
+            n = len(field_names)
             for i, geom in enumerate(shp):
-                atr = dict(zip(field_names, dbf[i][0]))
+                atr = {}
+                for j in range(n):
+                    atr[field_names[i][j]] = dbf[i][0][j]
                 atr["GEODAID"] = i
                 geo = geom.__geo_interface__
                 buffer.append(dict(type="Feature", geometry=geo, properties=atr))
             
         geojson = open(www_path, "w")
-        geojson.write(json.dumps({"type": "FeatureCollection","features": buffer}))
+        geojson.write(json.dumps({"type": "FeatureCollection","features": buffer}, ensure_ascii=False))
         geojson.close()
     else:
         print "The geojson data has been created before. If you want re-create geojson data, please call shp2json(shp, rebuild=True)."
@@ -440,7 +443,7 @@ def show_map(shp, rebuild=False, uuid=None):
         uuid = getuuid(shp)
     
     msg = {
-        "command": "add_layer",
+        "command": "show_map",
         "uuid": uuid,
     }
     str_msg = json.dumps(msg)
@@ -448,6 +451,24 @@ def show_map(shp, rebuild=False, uuid=None):
     print "send:", str_msg
     ws.close()
     sleep(1)
+    
+def add_layer(shp, rebuild=False, uuid=None):
+    shp2json(shp, rebuild=rebuild, uuid=uuid)
+        
+    global WS_SERVER 
+    ws = create_connection(WS_SERVER)
+    if uuid == None: 
+        uuid = getuuid(shp)
+    
+    msg = {
+        "command": "add_layer",
+        "uuid": uuid,
+    }
+    str_msg = json.dumps(msg)
+    ws.send(str_msg)
+    print "send:", str_msg
+    ws.close()
+    sleep(1)    
     
 def close_all():
     global WS_SERVER 
@@ -507,8 +528,8 @@ def select(shp, ids=[], uuid=None):
     ws.send(str_msg)
     #print "send:", str_msg
     ws.close()
-    
-def quantile_map(shp, var, k, basemap=None, uuid=None):
+   
+def equal_interval_map(shp, var, k, basemap=None, uuid=None):
     if uuid == None:
         uuid = getuuid(shp)
     if uuid not in R_SHP_DICT: 
@@ -516,6 +537,40 @@ def quantile_map(shp, var, k, basemap=None, uuid=None):
         return
     dbf = R_SHP_DICT[uuid]['dbf']
     
+    y = dbf.by_col[var]
+    q = pysal.esda.mapclassify.Equal_Interval(np.array(y), k=k)    
+    bins = q.bins
+    id_array = []
+    for i, upper in enumerate(bins):
+        if i == 0: 
+            id_array.append([j for j,v in enumerate(y) if v <= upper])
+        else:
+            id_array.append([j for j,v in enumerate(y) \
+                             if bins[i-1] < v <= upper])
+    global WS_SERVER 
+    ws = create_connection(WS_SERVER)
+    msg = {
+        "command": "quantile_map",
+        "uuid":  uuid,
+        "title": "Equal interval for variable [%s], k=%d" %(var, len(id_array)),
+        "bins": bins.tolist(),
+        "data": id_array,
+    }
+    if basemap:
+        msg["basemap"] = basemap
+        
+    str_msg = json.dumps(msg)
+    ws.send(str_msg)
+    #print "send:", str_msg
+    ws.close()
+    
+def quantile_map(shp, var, k, basemap=None, uuid=None):
+    if uuid == None:
+        uuid = getuuid(shp)
+    if uuid not in R_SHP_DICT: 
+        print "Please run show_map first."
+        return
+    dbf = pysal.open(shp.dataPath[:-3] + "dbf")
     y = dbf.by_col[var]
     q = pysal.esda.mapclassify.Quantiles(np.array(y), k=k)    
     bins = q.bins
@@ -543,14 +598,13 @@ def quantile_map(shp, var, k, basemap=None, uuid=None):
     #print "send:", str_msg
     ws.close()
 
-def lisa_map(shp, dbf, var, w):
-    uuid = getuuid(shp)
+def lisa_map(shp, var, local_moran, uuid=None):
+    if uuid == None:
+        uuid = getuuid(shp)
     if uuid not in R_SHP_DICT: 
         print "Please run show_map first."
         return
-    y = dbf.by_col[var]
-    lm = pysal.Moran_Local(np.array(y), w)
-     
+    lm = local_moran 
     bins = ["Not Significant","High-High","Low-High","Low-Low","Hight-Low"]
     id_array = []
     id_array.append([i for i,v in enumerate(lm.p_sim) \
@@ -651,23 +705,33 @@ def setup_cartodb(api_key, user):
     CARTODB_API_KEY = api_key
     CARTODB_USER = user
 
-def cartodb_get_data(table_name, fields=[],loc=None):
+def cartodb_get_data(table_name, fields=[],loc=None,file_name=None):
     fields_str = '*'
     if len(fields) > 0:
+        #if "ST_Transform(the_geom, 4326) as the_geom" not in fields:
+        #    fields.append("ST_Transform(the_geom, 4326) as the_geom")
         if "the_geom" not in fields:
             fields.append("the_geom")
         fields_str = ", ".join(fields)
     global CARTODB_API_KEY, CARTODB_DOMAIN
+    import requests
     sql = 'select %s from %s' % (fields_str, table_name)
     url = 'https://%s.cartodb.com/api/v1/sql' % CARTODB_DOMAIN
     params = {
+        'filename': 'cartodb-query',
         'format': 'shp' ,
         'api_key': CARTODB_API_KEY,
         'q': sql,
     }
-    req = urllib2.Request(url, urllib.urlencode(params))
-    response = urllib2.urlopen(req)
-    content = response.read()
+    r = requests.get(url, params=params, verify=False)
+    if r.ok == False:
+        # try again, sometime the CartoDB call doesn't work
+        r = requests.get(url, params=params, verify=False)
+    if r.ok == False:
+        print "Get data from CartoDB faield!"
+        return
+    
+    content = r.content 
    
     if loc == None: 
         loc = os.path.realpath(__file__)    
@@ -726,19 +790,20 @@ def cartodb_show_maps(shp, css=None, uuid=None, layers=[]):
 def cartodb_show_tables(tables):
     default_cartocss = {}
     default_cartocss['poly'] = ('#layer {'
-        'polygon-fill: green; '
-        'polygon-opacity: 0.8; '
-        'line-color: #CCC; }')
+        'polygon-fill: #006400; '
+        'polygon-opacity: 0.9; '
+        'line-color: #CCCCCC; }')
     default_cartocss['line'] = ('#layer {'
         'line-width: 2; '
-        'line-opacity: 0.8; '
-        'line-color: #FF6600; }')
+        'line-opacity: 0.9; '
+        'line-color: #006400; }')
     default_cartocss['point'] = ('#layer { '
          'marker-fill: #FF6600; marker-opacity: 1; marker-width: 6;'
          'marker-line-color: white; marker-line-width: 1; '
          'marker-line-opacity: 0.9; marker-placement: point; '
          'marker-type: ellipse; marker-allow-overlap: true;}')
     sublayers = []
+    uuids = []
     for table in tables:
         name = table["name"] 
         sql = 'SELECT * FROM %s' % name
@@ -750,13 +815,15 @@ def cartodb_show_tables(tables):
             css = table['css']
         sublayer = {'sql':sql, 'cartocss': css, 'interactivity':'cartodb_id'}
         sublayers.append(sublayer)
-    uuid = tables[0]["name"].split("_")[-1]
-    
+        uuids.append(tables[0]["name"].split("_")[-1])
+    uuid = uuids[0]
+    layers = uuid[1:]
     global WS_SERVER 
     ws = create_connection(WS_SERVER)
     msg = {
         "command": "cartodb_mymap",
         "uuid": uuid,
+        "layers": layers,
         "sublayers": json.dumps(sublayers),
     }
     str_msg = json.dumps(msg)
@@ -857,7 +924,7 @@ def cartodb_quantile_map(shp, var, k, uuid=None):
         if table[0].isdigit():
             table = "table_" + table
        
-    dbf = R_SHP_DICT[table]['dbf']
+    dbf = pysal.open(shp.dataPath[:-3] + "dbf")
     y = dbf.by_col[var]
     q = pysal.esda.mapclassify.Equal_Interval(np.array(y), k=k)    
     bins = q.bins
@@ -866,6 +933,11 @@ def cartodb_quantile_map(shp, var, k, uuid=None):
     geotype = shp.type
     if geotype == pysal.cg.shapes.Polygon:
         geotype = 'poly'
+        css = '#layer {polygon-fill:#FFFFB2; polygon-opacity: 0.8; line-color:#CCCCCC; line-width:1; line-opacity:1;}'
+        for i in range(n):
+            upper = bins[n-1-i] 
+            color = colors[n-1-i]
+            css += '#layer [ %s <= %s] {polygon-fill: %s;}' % (var, upper, color)
     elif geotype == pysal.cg.shapes.LineSegment or geotype == pysal.cg.Chain:
         geotype = 'line'
         css = '#layer {polygon-opacity:0; line-color:#FFFFB2; line-width:3; line-opacity:0.8;}'
