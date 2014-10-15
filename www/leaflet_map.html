@@ -29,8 +29,10 @@ $(document).ready(function() {
   //////////////////////////////////////////////////////////////
   
   $(window).bind('storage', function(e) {
+    var bh = false;
     var hl_ids = JSON.parse(localStorage.getItem('HL_IDS')),
         hl_ext = JSON.parse(localStorage.getItem('HL_MAP'));
+        
     for ( var uuid in hl_ids ) {
       if ( uuid in mapDict ) {
         var map = mapDict[uuid];
@@ -38,11 +40,22 @@ $(document).ready(function() {
         console.log("highlight");
         if ( uuid in hl_ext ) {
           map.highlightExt(ids, hl_ext[uuid]);
+          bh = true;
         } else if (uuid in hl_ids){
           map.highlight(hl_ids[uuid]);
+          bh = true;
         }
       }
     }
+    
+    if ( bh == false ) {
+      // try ext
+      for ( var uuid in hl_ids ) {
+        var map = mapDict[uuid];
+        map.highlightExt([1], hl_ext[uuid]);
+      }
+    }
+    
   });
   
   //////////////////////////////////////////////////////////////

@@ -9,7 +9,7 @@ class WSPySAL(WebSocket):
         if self.data is None:
             self.data = ''
             
-        print 'receive msg', self.data
+        #print 'receive msg', self.data
         # echo message back to client
         for client in self.server.connections.itervalues():
             if client != self:

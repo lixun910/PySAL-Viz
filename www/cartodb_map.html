@@ -36,6 +36,7 @@ $(document).ready(function() {
   //////////////////////////////////////////////////////////////
   
   $(window).bind('storage', function(e) {
+    var bh = false;
     var hl_ids = JSON.parse(localStorage.getItem('HL_IDS')),
         hl_ext = JSON.parse(localStorage.getItem('HL_MAP'));
     for ( var uuid in hl_ids ) {
@@ -45,7 +46,16 @@ $(document).ready(function() {
         
         if (uuid in hl_ids){
           map.old_highlight(hl_ids[uuid]);
-        }
+          bh = true;
+        }       
+      }
+    }
+    
+    if ( bh == false ) {
+      // try ext
+      for ( var uuid in hl_ids ) {
+        var map = mapDict[uuid];
+        map.highlightExt([1], hl_ext[uuid]);
       }
     }
   });
@@ -87,6 +97,9 @@ $(document).ready(function() {
   .addTo(map)
   .on('done', function(layer) {
     //cdb.vis.Vis.addInfowindow(map, layer.getSubLayer(0), ['lisa'])
+    //if ( mymap ) {
+    //  map.fitBounds([[mymap.mapBottom,mymap.mapLeft],[mymap.mapTop,mymap.mapRight]]);
+    //}
   })
   .on('error', function() {}
   );
@@ -99,11 +112,14 @@ $(document).ready(function() {
     "noforeground": true,
     });
     
-  for (var i=0, n=layers.length; i<n; i++) {
-    var sub_uuid = layers[i];
-    if ( sub_uuid in window.opener.dataDict ){
-      var sub_data = window.opener.dataDict[sub_uuid];
-      mymap.addLayer(sub_uuid, new LeafletMap(sub_data,L,map));
+  map.fitBounds([[mymap.mapBottom,mymap.mapLeft],[mymap.mapTop,mymap.mapRight]]);
+  if ( typeof layers == 'string' || layers instanceof String ) {
+    for (var i=0, n=layers.length; i<n; i++) {
+      var sub_uuid = layers[i];
+      if ( sub_uuid in window.opener.dataDict ){
+        var sub_data = window.opener.dataDict[sub_uuid];
+        mymap.addLayer(sub_uuid, new LeafletMap(sub_data,L,map));
+      }
     }
   }
 

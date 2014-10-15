@@ -58,20 +58,20 @@ CARTO_CSS_LISA = ('#layer { '
                   'polygon-fill: #FFF; '
                   'polygon-opacity: 0.5; '
                   'line-color: #CCC; } '
-                  '#layer[lisa="1"]{polygon-fill: red;}'
-                  '#layer[lisa="2"]{polygon-fill: lightsalmon;}'
-                  '#layer[lisa="3"]{polygon-fill: blue;}'
-                  '#layer[lisa="4"]{polygon-fill: lightblue;}')
+                  '#layer[lisa=1]{polygon-fill: red;}'
+                  '#layer[lisa=2]{polygon-fill: lightsalmon;}'
+                  '#layer[lisa=3]{polygon-fill: blue;}'
+                  '#layer[lisa=4]{polygon-fill: lightblue;}')
 
 CARTO_CSS_LISA_LINE = ('#layer { '
                   'line-width: 3; '
                   'line-color: #CCC; '
                   'polygon-opacity: 0.5; '
                   'line-opacity: 0.5;} '
-                  '#layer[lisa="1"]{line-color: red;}'
-                  '#layer[lisa="2"]{line-color: lightsalmon;}'
-                  '#layer[lisa="3"]{line-color: blue;}'
-                  '#layer[lisa="4"]{line-color: lightblue;}')
+                  '#layer[lisa=1]{line-color: red;}'
+                  '#layer[lisa=2]{line-color: lightsalmon;}'
+                  '#layer[lisa=3]{line-color: blue;}'
+                  '#layer[lisa=4]{line-color: lightblue;}')
 
 def randomword(length):
     return ''.join(random.choice(string.lowercase) for i in range(length))    
@@ -598,6 +598,41 @@ def quantile_map(shp, var, k, basemap=None, uuid=None):
     #print "send:", str_msg
     ws.close()
 
+    
+def natural_map(shp, var, k, basemap=None, uuid=None):
+    if uuid == None:
+        uuid = getuuid(shp)
+    if uuid not in R_SHP_DICT: 
+        print "Please run show_map first."
+        return
+    dbf = pysal.open(shp.dataPath[:-3] + "dbf")
+    y = dbf.by_col[var]
+    q = pysal.Natural_Breaks(np.array(y), k=k)    
+    bins = q.bins
+    id_array = []
+    for i, upper in enumerate(bins):
+        if i == 0: 
+            id_array.append([j for j,v in enumerate(y) if v <= upper])
+        else:
+            id_array.append([j for j,v in enumerate(y) \
+                             if bins[i-1] < v <= upper])
+    global WS_SERVER 
+    ws = create_connection(WS_SERVER)
+    msg = {
+        "command": "quantile_map",
+        "uuid":  uuid,
+        "title": "Natural break map for variable [%s], k=%d" %(var, len(id_array)),
+        "bins": bins,
+        "data": id_array,
+    }
+    if basemap:
+        msg["basemap"] = basemap
+        
+    str_msg = json.dumps(msg)
+    ws.send(str_msg)
+    #print "send:", str_msg
+    ws.close()
+    
 def lisa_map(shp, var, local_moran, uuid=None):
     if uuid == None:
         uuid = getuuid(shp)
@@ -768,6 +803,9 @@ def cartodb_show_maps(shp, css=None, uuid=None, layers=[]):
     base_table = uuid
     if base_table == None:
         base_table = getuuid(shp)
+        if base_table[0].isdigit():
+            base_table = "table_" + base_table
+        
         
     tables = []
     table = {'name':base_table, 'type':cartodb_get_geomtype(shp)}
@@ -843,7 +881,7 @@ def cartodb_drop_table(table_name):
     r = requests.get(url, params=params, verify=False)
     content = r.json()    
    
-def cartodb_lisa(local_moran, new_lisa_table):
+def cartodb_lisa(local_moran, new_lisa_table, cartodb_ids=None):
     """
     add a csv table with LISA clusters, using cartodb_id to join table
     """
@@ -858,10 +896,19 @@ def cartodb_lisa(local_moran, new_lisa_table):
     loc = os.path.join(loc, "www", "tmp")
     
     csv_loc = os.path.join(loc, new_lisa_table + ".csv" )
+    try:
+        os.remove(csv_loc)
+    except:
+        pass
+    
     csv = open(csv_loc, "w")
     csv.write("cartodb_id, lisa\n")
-    for i,v in enumerate(lisa):
-        csv.write("%s,%s\n" % (i, v))
+    if cartodb_ids:
+        for i,v in enumerate(lisa):
+            csv.write("%s,%s\n" % (cartodb_ids[i], v))
+    else:
+        for i,v in enumerate(lisa):
+            csv.write("%s,%s\n" % (i+1, v))
     csv.close()
     # create zip file for uploading
     zp_loc =  os.path.join(loc, "upload.zip")
@@ -940,7 +987,7 @@ def cartodb_quantile_map(shp, var, k, uuid=None):
             css += '#layer [ %s <= %s] {polygon-fill: %s;}' % (var, upper, color)
     elif geotype == pysal.cg.shapes.LineSegment or geotype == pysal.cg.Chain:
         geotype = 'line'
-        css = '#layer {polygon-opacity:0; line-color:#FFFFB2; line-width:3; line-opacity:0.8;}'
+        css = '#layer {polygon-opacity:0.6; line-color:#FFFFB2; line-width:3; line-opacity:0.8;}'
         for i in range(n):
             upper = bins[n-1-i] 
             color = colors[n-1-i]

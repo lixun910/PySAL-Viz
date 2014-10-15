@@ -27,13 +27,48 @@ def distToSegmentSquared(p, v, w):
     if t > 1: return dist2(p, w)
     return dist2(p, [v[0] + t * (w[0] - v[1]), v[1] + t * (w[1] - v[1])])
 
+def dist3(x1,y1, x2,y2, x3,y3): # x3,y3 is the point
+    px = x2-x1
+    py = y2-y1
+
+    something = px*px + py*py
+    
+    if something == 0:
+        px = x3-x1
+        py = y3-y1
+        return math.sqrt( px*px + py*py)
+
+    u =  ((x3 - x1) * px + (y3 - y1) * py) / float(something)
+
+    if u > 1:
+        u = 1
+    elif u < 0:
+        u = 0
+
+    x = x1 + u * px
+    y = y1 + u * py
+
+    dx = x - x3
+    dy = y - y3
+
+    # Note: If the actual distance does not matter,
+    # if you only want to compare what this function
+    # returns to other results of this function, you
+    # can just return the squared distance instead
+    # (i.e. remove the sqrt) to gain a little performance
+
+    dist = math.sqrt(dx*dx + dy*dy)
+
+    return dist
+
 def distToSegment(l, w):
     n = len(l)
     min_dist = sys.maxint
     for i in range(n-1):
         p = l[i]
         v = l[i+1]
-        dist = math.sqrt(distToSegmentSquared(p, v, w))
+        #dist = math.sqrt(distToSegmentSquared(p, v, w))
+        dist = dist3(p[0], p[1], v[0], v[1], w[0], w[1])
         if dist < min_dist:
             min_dist = dist
     return min_dist
@@ -131,11 +166,11 @@ class NetworkCluster:
         network_dict = {}
         for feature in network_data["features"]:
             prop = feature["properties"]
-            length = prop["length"]
+            length = prop["length"] if 'length' in prop else None
             coords = feature["geometry"]["coordinates"]
             #print length 
             osm_id = prop["osm_id"]
-            if length <= SEG_LENGTH:
+            if length and length <= SEG_LENGTH:
                 
                 # no need segmentation
                 if isinstance(coords[0][0], float):
@@ -253,20 +288,25 @@ class NetworkCluster:
             dist = q[0]
             idx = q[1]
             if dist[0] < 1:
+                # if point is right on a line seg, pick a line and snap the point
                 i = idx[0] 
                 lp = tuple(line_points[i])
                 l = random.sample(search_dict[lp],1)[0]
                 seg_dict[l][-1] += 1
                 continue
+            # find all nearest line segs 
             lines = set()
             for i in idx:
                 if i < n_lp:
                     lp = tuple(line_points[i])
                     l = search_dict[lp]
-                    for i in l:
-                        lines.add(i)
+                    for j in l:
+                        lines.add(j)
+            # if no nearest line seg, continue
+            if len(lines) == 0:
+                continue
             lines = list(lines)
-            snap_i = 0
+            
             snap_dist = sys.maxint
             snap_l = None
             for l in lines:
@@ -276,6 +316,7 @@ class NetworkCluster:
                     break
                 elif dist < snap_dist:
                     snap_l = l 
+                    snap_dist = dist
             seg_dict[snap_l][-1] += 1
        
     def CreateWeights(self): 
@@ -379,13 +420,17 @@ class NetworkCluster:
         shapewriter.save(shpFileName) 
   
 
-def GetJsonPoints(pointsJsonFile):
+def GetJsonPoints(pointsJsonFile, encoding=None):
     points = []
     # get all points data
     f = open(pointsJsonFile)
     json_data = f.read()
     f.close()
-    points_data = json.loads(json_data)
+    if encoding:
+        points_data = json.loads(json_data, encoding=encoding)
+    else:
+        points_data = json.loads(json_data)
+        
     for feature in points_data["features"]:
         coords = feature["geometry"]["coordinates"]
         points.append(tuple(coords))
