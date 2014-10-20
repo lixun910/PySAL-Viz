@@ -199,6 +199,18 @@
     this.screenObjects = [];
   };
   
+  JsonMap.prototype.updateExtent = function(basemap) {
+    // when overlay this map on top of a base map, the extent of this map
+    // should be changed to the extent of the base map
+    this.extent = basemap.extent;
+    this.mapLeft = basemap.mapLeft;
+    this.mapRight = basemap.mapRight;
+    this.mapTop = basemap.mapTop;
+    this.mapBottom = basemap.mapBottom;
+    this.mapWidth = basemap.mapWidth;
+    this.mapHeight = basemap.mapHeight;
+  };
+  
   JsonMap.prototype.getExtent = function() {
     // Get extent from raw data
     var minX = Number.POSITIVE_INFINITY,
@@ -497,9 +509,9 @@
   
   // member functions
   GeoVizMap.prototype = {
-    addLayer : function(uuid, map) {
-      
-      this.layers[uuid] = map;
+    addLayer : function(uuid, submap) {
+      this.layers[uuid] = submap;
+      submap.updateExtent(this.map);
       this.update(); 
     },
     

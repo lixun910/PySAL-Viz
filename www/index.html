@@ -73,7 +73,7 @@ $(document).ready(function() {
   // WebSocket Server Communications
   //////////////////////////////////////////////////////////////
   if (! ("WebSocket" in window)) WebSocket = MozWebSocket; // firefox
-  socket = new WebSocket("ws://localhost:9000");
+  socket = new WebSocket("ws://127.0.0.1:9000");
   
   // open the socket
   socket.onopen = function(event) {

@@ -1,3 +1,17 @@
+def test_d3viz():
+    import pysal
+    shp = pysal.open(pysal.examples.get_path('NAT.shp'),'r')
+    dbf = pysal.open(pysal.examples.get_path('NAT.dbf'),'r')    
+
+    import d3viz
+    d3viz.setup()
+    d3viz.show_map(shp)
+    
+    select_ids = [i for i,v in enumerate(dbf.by_col["HC60"]) if v <= 0.001]
+    d3viz.select(shp, ids=select_ids)    
+
+    d3viz.quantile_map(shp, "HR90", 5)
+    
 def test_cartodb():
     import pysal
     
@@ -11,7 +25,7 @@ def test_cartodb():
     
     d3viz.show_map(plots_shp)
     
-    shp_path = "/data/sf_cartheft.shp"
+    shp_path = "../test_data/sf_cartheft.shp"
     crime_shp = pysal.open(shp_path)
     crime_dbf = pysal.open(shp_path[:-3]+"dbf")
     
@@ -305,6 +319,9 @@ def test2():
     d3viz.scatter_plot(shp, ["dog_cnt","home_cnt"])
     
     d3viz.lisa_map(shp, "dog_cnt", lm)
+    
+    
+#test_d3viz()    
 #test_network()
-#test_cartodb()
-test1()
+test_cartodb()
+#test1()

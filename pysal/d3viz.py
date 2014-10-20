@@ -327,6 +327,9 @@ def setup(restart=True):
         clean_ports()
         current_path = os.path.realpath(__file__)    
         
+        if sys.platform == 'win32':
+            sleep(1)
+            
         print "starting websocket server..."
         base_path = os.path.split(current_path)[0]
         ws_path = os.path.join(base_path, "..", "ws_server", "start_ws_server.py")
