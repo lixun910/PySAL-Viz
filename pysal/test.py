@@ -320,8 +320,13 @@ def test2():
     
     d3viz.lisa_map(shp, "dog_cnt", lm)
     
+def test_webportal():
+    import d3viz
+    d3viz.start_webportal()
     
 #test_d3viz()    
 #test_network()
-test_cartodb()
+#test_cartodb()
 #test1()
+
+test_webportal()
