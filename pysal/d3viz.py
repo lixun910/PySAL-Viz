@@ -14,10 +14,15 @@ from time import sleep
 __author__='Xun Li <xunli@asu.edu>'
 __all__=['clean_ports','setup','getuuid','shp2json','show_map','get_selected', 'select','quantile_map','lisa_map','scatter_plot_matrix']
 
+HTTP_ADDR = "http://127.0.0.1:8000/"
 PORTAL = "index.html"
 WS_SERVER = "ws://localhost:9000"
-R_SHP_DICT = {}
 
+# global variables
+R_SHP_DICT = {}
+# the dictionary of opened windows: key is winID and value is parameters used
+# for this window
+WIN_DICT = {}
 
 YLRD=  {
     3: ["#ffeda0","#feb24c","#f03b20"],
@@ -445,11 +450,16 @@ def show_map(shp, rebuild=False, uuid=None):
     """
     shp2json(shp, rebuild=rebuild, uuid=uuid)
     
-    global WS_SERVER 
-    ws = create_connection(WS_SERVER)
     if uuid == None: 
         uuid = getuuid(shp)
-    
+
+    request_page = "index.html?wid=%s&json_url=%s&uuid=%s&param=0" % (wid, uuid)
+    url = "%s/%s&%s" (HTTP_ADDR, request_page , randomword(10))
+   
+    webbrowser.open_new(url) 
+    """
+    global WS_SERVER 
+    ws = create_connection(WS_SERVER)
     msg = {
         "id" : getmsguuid(),
         "command": "show_map",
@@ -460,6 +470,7 @@ def show_map(shp, rebuild=False, uuid=None):
     print "send:", str_msg
     ws.close()
     sleep(1)
+    """
     
 def add_layer(shp, rebuild=False, uuid=None):
     shp2json(shp, rebuild=rebuild, uuid=uuid)
