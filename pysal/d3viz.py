@@ -361,6 +361,11 @@ def getuuid(shp):
     """
     return md5.md5(shp.dataPath).hexdigest()
    
+def getmsguuid(shp):
+    """
+    """
+    return "m"+md5.md5(shp.dataPath).hexdigest()
+
 def json2shp(uuid, json_path):
     global R_SHP_DICT
     if uuid in SHP_DICT:
@@ -446,6 +451,7 @@ def show_map(shp, rebuild=False, uuid=None):
         uuid = getuuid(shp)
     
     msg = {
+        "id" : getmsguuid(),
         "command": "show_map",
         "uuid": uuid,
     }
@@ -464,6 +470,7 @@ def add_layer(shp, rebuild=False, uuid=None):
         uuid = getuuid(shp)
     
     msg = {
+        "id" : getmsguuid(),
         "command": "add_layer",
         "uuid": uuid,
     }
@@ -477,6 +484,7 @@ def close_all():
     global WS_SERVER 
     ws = create_connection(WS_SERVER)
     msg = {
+        "id" : getmsguuid(),
         "command": "close_all",
     }
     str_msg = json.dumps(msg)
@@ -499,6 +507,7 @@ def get_selected(shp,uuid=None):
     global WS_SERVER 
     ws = create_connection(WS_SERVER)
     msg = {
+        "id" : getmsguuid(),
         "command": "get_selected",
         "uuid":  uuid,
     }
@@ -523,6 +532,7 @@ def select(shp, ids=[], uuid=None):
     global WS_SERVER 
     ws = create_connection(WS_SERVER)
     msg = {
+        "id" : getmsguuid(),
         "command": "select",
         "uuid":  uuid,
         "data": ids
@@ -553,7 +563,9 @@ def equal_interval_map(shp, var, k, basemap=None, uuid=None):
     global WS_SERVER 
     ws = create_connection(WS_SERVER)
     msg = {
-        "command": "quantile_map",
+        "id" : getmsguuid(),
+        "command": "thematic_map",
+        "type": "quantile",
         "uuid":  uuid,
         "title": "Equal interval for variable [%s], k=%d" %(var, len(id_array)),
         "bins": bins.tolist(),
@@ -587,8 +599,9 @@ def quantile_map(shp, var, k, basemap=None, uuid=None):
     global WS_SERVER 
     ws = create_connection(WS_SERVER)
     msg = {
-        "command": "quantile_map",
+        "command": "thematic_map",
         "uuid":  uuid,
+        "type": "quantile",
         "title": "Quantile map for variable [%s], k=%d" %(var, len(id_array)),
         "bins": bins.tolist(),
         "data": id_array,
@@ -622,8 +635,9 @@ def natural_map(shp, var, k, basemap=None, uuid=None):
     global WS_SERVER 
     ws = create_connection(WS_SERVER)
     msg = {
-        "command": "quantile_map",
+        "command": "thematic_map",
         "uuid":  uuid,
+        "type": "quantile",
         "title": "Natural break map for variable [%s], k=%d" %(var, len(id_array)),
         "bins": bins,
         "data": id_array,
@@ -654,7 +668,8 @@ def lisa_map(shp, var, local_moran, uuid=None):
     global WS_SERVER 
     ws = create_connection(WS_SERVER)
     msg = {
-        "command": "lisa_map",
+        "command": "thematic_map",
+        "type": "lisa_map",
         "uuid":  uuid,
         "title": "LISA map for variable [%s], w=%s" %(var, ".gal"),
         "bins": bins,

@@ -121,6 +121,7 @@ body {
 <link rel="stylesheet" href="css/ui-lightness/jquery-ui-1.10.4.custom.min.css">
 <script src="js/jquery-ui-1.10.4.custom.min.js"></script>
 <script src="js/list.min.js"></script>
+<script src="js/d3viz.js"></script>
 <script>
 /*
 layerDict
@@ -147,6 +148,8 @@ var plotDict = {};
 var dataDict = {};
 
 var layerDict = {};
+var popupWins = [];
+
 var socket;
 var tempMsg;
 
@@ -161,26 +164,8 @@ function ShowMsgBox(title, content) {
 }
 
 $(document).ready(function() {
-  //////////////////////////////////////////////////////////////
   // Local Storage Brushing/Linking
-  //////////////////////////////////////////////////////////////
-  
-  $(window).bind('storage', function(e) {
-    var hl_ids = JSON.parse(localStorage.getItem('HL_IDS')),
-        hl_ext = JSON.parse(localStorage.getItem('HL_MAP'));
-    for ( var uuid in hl_ids ) {
-      if ( uuid in mapDict ) {
-        var map = mapDict[uuid];
-        var ids = hl_ids[uuid];
-        console.log("highlight");
-        if ( uuid in hl_ext ) {
-          map.highlightExt(ids, hl_ext[uuid]);
-        } else if ( uuid in hl_ids ) {
-          map.highlight(hl_ids[uuid]);
-        }
-      }
-    }
-  });
+  d3viz.SetupBrushLink( mapDict );
   
   //////////////////////////////////////////////////////////////
   // WebSocket Server Communications

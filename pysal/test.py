@@ -324,9 +324,9 @@ def test_webportal():
     import d3viz
     d3viz.start_webportal()
     
-#test_d3viz()    
+test_d3viz()    
 #test_network()
 #test_cartodb()
 #test1()
 
-test_webportal()
+#test_webportal()
