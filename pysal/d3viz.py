@@ -111,15 +111,7 @@ class AnswerMachine(threading.Thread):
                         dbf_path = path[:-3] + "dbf"
                         shp = pysal.open(path,'r')
                         dbf = pysal.open(dbf_path, 'r')
-                        
-                        if not uuid in R_SHP_DICT:
-                            R_SHP_DICT[uuid] = {}
-                        R_SHP_DICT[uuid]["shp"] = shp
-                        R_SHP_DICT[uuid]["dbf"] = dbf
-                        R_SHP_DICT[uuid]["shp_path"] = path
-                        
-                        self.parent.show_map(shp)
-                    
+                        self.parent.shp2json(shp) 
                 elif command == "request_params":
                     wid = msg["wid"]
                     params = WIN_DICT[wid]
@@ -129,18 +121,40 @@ class AnswerMachine(threading.Thread):
                         "parameters": params
                     }
                     self.ws.send(json.dumps(msg))
-                     
-                elif command == "new_quantile_map":
+                elif command == "new_lisa_map":
                     uuid = msg["uuid"]
+                    var = msg["var"]
+                    w_name = msg["w_name"]
+                    shp = R_SHP_DICT[uuid]["shp"]
+                    dbf = R_SHP_DICT[uuid]["dbf"]
+                    w = R_SHP_DICT[uuid]["weights"][w_name]["w"]
+                    y = np.array(dbf.by_col[var])
+                    lm = pysal.Moran_Local(y, w)
+                    self.parent.lisa_map(shp, var, lm)
+                elif command == "new_moran_scatter_plot":
+                    uuid = msg["uuid"]
+                    var = msg["var"]
+                    w_name = msg["w_name"]
+                    shp = R_SHP_DICT[uuid]["shp"]
+                    dbf = R_SHP_DICT[uuid]["dbf"]
+                    w = R_SHP_DICT[uuid]["weights"][w_name]["w"]
+                    self.parent.moran_scatter_plot(shp, dbf, var, w)
+                elif command == "new_scatter_plot":
+                    uuid = msg["uuid"]
+                    var_x = msg["var_x"]
+                    var_y = msg["var_y"]
+                    shp = R_SHP_DICT[uuid]["shp"]
+                    self.parent.scatter_plot(shp, field_x=var_x, field_y=var_y)
+                elif command == "new_choropleth_map":
+                    uuid = msg["uuid"]
+                    method = msg["method"]
                     var = msg["var"]
                     cat = msg["category"]
                     shp = R_SHP_DICT[uuid]["shp"]
-                    dbf = R_SHP_DICT[uuid]["dbf"]
-                    
-                    self.parent.quantile_map(shp, var, cat)
-                    
+                    self.parent.choropleth_map(shp, var, cat, method=method)
                 elif command == "create_w":
                     uuid = msg["uuid"]
+                    wid = msg["wid"]
                     parameters = msg["parameters"]
                     w_id = parameters["w_id"] \
                         if "w_id" in parameters else None
@@ -164,7 +178,6 @@ class AnswerMachine(threading.Thread):
                         if "kernel_type" in parameters else None
                     kernel_nn = parameters["kernel_nn"] \
                         if "kernel_nn" in parameters else None
-                    
                     shp_path = R_SHP_DICT[uuid]["shp_path"]
                     w = CreateWeights(shp_path, w_name, w_id, w_type,\
                                       cont_type = cont_type,
@@ -175,14 +188,19 @@ class AnswerMachine(threading.Thread):
                                       dist_value = dist_value,
                                       kernel_type = kernel_type,
                                       kernel_nn = kernel_nn)                    
-                    
+                    w.name = w_name
                     if not "weights" in R_SHP_DICT[uuid]:
                         R_SHP_DICT[uuid]["weights"] = {}
-                    R_SHP_DICT[uuid]["weights"][w_name] = w
-                    
-                    self.ws.send('{"command":"rsp_create_w","success":1}')
+                    R_SHP_DICT[uuid]["weights"][w_name] = {
+                        'w':w, 'type':w_type
+                    }
+                    results = {'command':'rsp_create_w', 'wid': wid, 'content': {
+                        w_name : {'type':w_type}
+                        }}
+                    self.ws.send(json.dumps(results))
                 
                 elif command == "spatial_regression":
+                    wid = msg["wid"] 
                     uuid = msg["uuid"] 
                     w_model = msg["w"]  if "w" in msg else []
                     w_kernel = msg["wk"] if "wk" in msg else []
@@ -213,8 +231,8 @@ class AnswerMachine(threading.Thread):
                         model_type = mtypes[model_type]
                         method_types = {0: 'ols', 1: 'gm', 2: 'ml'}
                         method = method_types[model_method]
-                        w_list = [R_SHP_DICT[uuid]["weights"][w_name] for w_name in w_model]
-                        wk_list = [R_SHP_DICT[uuid]["weights"][w_name] for w_name in w_kernel]
+                        w_list = [R_SHP_DICT[uuid]["weights"][w_name]['w'] for w_name in w_model]
+                        wk_list = [R_SHP_DICT[uuid]["weights"][w_name]['w'] for w_name in w_kernel]
                         LM_TEST = False
                         if len(w_list) > 0 and model_type in ['Standard', 'Spatial Lag']:
                             LM_TEST = True
@@ -288,6 +306,7 @@ class AnswerMachine(threading.Thread):
                         result = {}
                         result['report'] = model_result
                         result['success'] = 1                        
+                        result['wid'] = wid
                         result['command'] = 'rsp_spatial_regression'
                         self.ws.send(json.dumps(result))
             except:
@@ -446,23 +465,16 @@ def shp2json(shp, rebuild=False, uuid=None):
 def init_map(shp, rebuild=False, uuid=None):
     shp2json(shp, rebuild=rebuild, uuid=uuid)
     
-def show_map(shp):
-    """
-    Ideally, users need to open and process shapefile using:
-    >>>> shp = pysal.open(pysal.examples.get_path('columbus.shp'),'r')
+def show_portal():
+    wid = getmsguuid()
+    WIN_DICT[wid] = None
     
-    then, users can call 
-    
-    >>>> pysal.contrib.d3viz.show_map(shp) 
+    request_page = "new_portal.html?wid=%s" % (wid)
+    url = "%s/%s&%s" % (HTTP_ADDR, request_page , randomword(10))
    
-    to bring up a browser for showing the map.
-    For further usage, e.g. create a quantile map, users need to call the 
-    command with the uuid to specify the data.
+    webbrowser.open_new(url) 
     
-    >>>> pysal.contrib.d3viz.quantile_map(shp, 'var', 5)
-    
-    To create a scatter plot, users need to 
-    """
+def show_map(shp):
     uuid = getuuid(shp)
 
     if uuid not in R_SHP_DICT: 
@@ -476,20 +488,6 @@ def show_map(shp):
     url = "%s/%s&%s" % (HTTP_ADDR, request_page , randomword(10))
    
     webbrowser.open_new(url) 
-    """
-    global WS_SERVER 
-    ws = create_connection(WS_SERVER)
-    msg = {
-        "id" : getmsguuid(),
-        "command": "show_map",
-        "uuid": uuid,
-    }
-    str_msg = json.dumps(msg)
-    ws.send(str_msg)
-    print "send:", str_msg
-    ws.close()
-    sleep(1)
-    """
     
 def add_layer(shp, rebuild=False, uuid=None):
     shp2json(shp, rebuild=rebuild, uuid=uuid)
@@ -609,6 +607,51 @@ def equal_interval_map(shp, var, k, basemap=None, uuid=None):
     #print "send:", str_msg
     ws.close()
     
+def choropleth_map(shp, var, k, method="quantile", basemap="leaflet", uuid=None):
+    if uuid == None:
+        uuid = getuuid(shp)
+    if uuid not in R_SHP_DICT: 
+        print "Please run show_map first."
+        return
+    dbf = pysal.open(shp.dataPath[:-3] + "dbf")
+    y = dbf.by_col[var]
+    k = int(k)
+    if method == "quantile":
+        pysalFunc = pysal.Quantiles
+    elif method == "equal interval":
+        pysalFunc = pysal.Equal_Interval
+    elif method == "natural breaks":
+        pysalFunc = pysal.Natural_Breaks
+    elif method == "fisher jenks":
+        pysalFunc = pysal.Fisher_Jenks
+    
+    q = pysalFunc(np.array(y), k=k)    
+    bins = q.bins
+    id_array = []
+    for i, upper in enumerate(bins):
+        if i == 0: 
+            id_array.append([j for j,v in enumerate(y) if v <= upper])
+        else:
+            id_array.append([j for j,v in enumerate(y) \
+                             if bins[i-1] < v <= upper])
+            
+    wid = getmsguuid()
+    WIN_DICT[wid] = {
+        "uuid":  uuid,
+        "type": method,
+        "title": "%s map for variable [%s], k=%d" %(method, var, len(id_array)),
+        "bins": bins if isinstance(bins, list) else bins.tolist(),
+        "id_array": id_array,
+    }
+
+    base_page = "thematic_map.html" 
+    if basemap == "leaflet": 
+        base_page = "new_leaflet_map.html"
+    request_page = "%s?wid=%s&json_url=%s&uuid=%s&param=1"%(base_page, wid, uuid, uuid)
+    url = "%s/%s&%s" % (HTTP_ADDR, request_page , randomword(10))
+   
+    webbrowser.open_new(url) 
+    
 def quantile_map(shp, var, k, basemap=None, uuid=None):
     if uuid == None:
         uuid = getuuid(shp)
@@ -699,7 +742,7 @@ def natural_map(shp, var, k, basemap=None, uuid=None):
     #print "send:", str_msg
     ws.close()
     
-def lisa_map(shp, var, local_moran, basemap=None, uuid=None):
+def lisa_map(shp, var, local_moran, basemap="leaflet", uuid=None):
     if uuid == None:
         uuid = getuuid(shp)
     if uuid not in R_SHP_DICT: 
@@ -805,12 +848,6 @@ def scatter_plot_matrix(shp, fields):
     #print "send:", str_msg
     ws.close()
     
-def start_webportal():
-    global PORTAL
-    PORTAL = "portal.html"
-    setup()
-    am = AnswerMachine(sys.modules[__name__])
-    am.start()
     
 CARTODB_API_KEY = '340808e9a453af9680684a65990eb4eb706e9b56'
 CARTODB_DOMAIN = 'lixun910'

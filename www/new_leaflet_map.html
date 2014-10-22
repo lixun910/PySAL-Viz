@@ -5,13 +5,13 @@
 <title>GeoDa.app</title>
 <style>
 .info {
-			padding: 6px 8px;
-			font: 14px/16px Arial, Helvetica, sans-serif;
-			background: white;
-			background: rgba(255,255,255,0.8);
-			box-shadow: 0 0 15px rgba(0,0,0,0.2);
-			border-radius: 5px;
-		}
+    padding: 6px 8px;
+    font: 14px/16px Arial, Helvetica, sans-serif;
+    background: white;
+    background: rgba(255,255,255,0.8);
+    box-shadow: 0 0 15px rgba(0,0,0,0.2);
+    border-radius: 5px;
+}
 </style>
 <link rel="stylesheet" href="css/d3viz.css" />
 <link rel="stylesheet" href="css/leaflet.css" />
@@ -115,8 +115,10 @@ $(document).ready(function() {
        
 	$(div).append($(legend)); 
 	$(div).append($(info)); 
-	$(div).append("Select to change color scheme:"); 
-	$(div).append($(sel)); 
+	if ( type != "lisa") {
+	  $(div).append("Select to change color scheme:"); 
+	  $(div).append($(sel)); 
+	}
         return div;
       };
       selector.addTo(lmap);

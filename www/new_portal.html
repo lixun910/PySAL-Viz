@@ -3,468 +3,31 @@
 <head>
 <meta charset="utf-8">
 <title>XGeo.app</title>
-<style>
-div {
-  display: block;
-}
-#header {
-  height: 80px;
-  margin-bottom: 20px;
-  padding-top: 20px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #eee;
-}
-#header .container {
-  width: 90%;
-  height: 90px;
-  margin: 0 auto;
-  text-align: left;
-}
-#header .logo {
-  width: 480px;
-}
-body {
-  text-align: center;
-  font-family: "Trebuchet MS", "Helvetica", "Arial",  "Verdana", "sans-serif";
-  font-size: 62.5%;
-}
-#dragdrop_div {
-  width: 60%;
-  padding: 10px;
-}
+<link rel="stylesheet" href="css/portal.css" />
+<link rel="stylesheet" href="css/leaflet.css" />
+<link rel="stylesheet" href="css/ui-lightness/jquery-ui-1.10.4.custom.min.css">
 
-#drop_zone {
-  border: 2px dashed #bbb;
-  border-radius: 5px;
-  padding: 25px;
-  text-align: center;
-  font: 20pt bold 'Vollkorn';
-  color: #bbb;
-}
-
-#dropbox_div {
-  width: 250px; 
-  height: 80px;
-  margin-top: 10px;
-  padding-top: 30px;
-  vertical-align: middle;
-  border-right:2px solid #ccc;
-  float: left;
-}
-#progress_bar {
-  margin: 10px 0;
-  padding: 3px;
-  border: 1px solid #000;
-  font-size: 14px;
-  clear: both;
-  opacity: 0;
-  -moz-transition: opacity 1s linear;
-  -o-transition: opacity 1s linear;
-  -webkit-transition: opacity 1s linear;
-}
-#progress_bar.loading {
-  opacity: 1.0;
-}
-#progress_bar .percent {
-  background-color: #99ccff;
-  height: auto;
-  width: 0;
-}
-.check_file {
-  background-image: url("img/checkmark.png");
-  background-repeat:no-repeat;
-  background-position:right; 
-}
-.uncheck_file {
-  color: red;
-  font-weight: bold;
-}
-#toolbar {
-  width: 90%;
-  height: 100px;
-  margin-top: 20px;
-  margin:0 auto;
-}
-.toolbar_tbl {
-  margin-top: 20px; 
-  border: none; 
-  overflow: hidden;
-}
-.block_button {
-  border: 1px solid #bbb;
-  border-radius: 5px;
-  padding: 25px;
-  opacity: 0.2;
-  background: #ccc;
-  background-repeat: no-repeat;
-  background-position: center;
-}
-#btnOpenData {background-image: url(img/add-file.png);}
-#btnAddLayer {background-image: url(img/addLayer.png);}
-#btnSave {background-image: url(img/save.png);}
-#btnShowTable {background-image: url(img/table.png);}
-#btnCreateW {background-image: url(img/newW.png);}
-#btnWHistogram{background-image: url(img/wHist.png);}
-#btnKDE{background-image: url(img/kde.png);}
-#btnNewMap{background-image: url(img/nmap.png);}
-#btnScatterPlot{background-image: url(img/scatter.png);}
-#btnHist{background-image: url(img/hist.png);}
-#btnPCP{background-image: url(img/pcp.png);}
-#btnLISA{background-image: url(img/lisa.png);}
-#btnSpreg{background-image: url(img/spreg.png);}
-#btnAbout {background-image: url(img/about.png);}
-</style>
 <script src="js/jquery.min.js"></script>
 <script src="js/d3.v3.min.js"></script>
+<script src="js/leaflet.js"></script>
 <script src="js/jmap.js"></script>
 <script src="js/utils.js"></script>
-<link rel="stylesheet" href="css/ui-lightness/jquery-ui-1.10.4.custom.min.css">
 <script src="js/jquery-ui-1.10.4.custom.min.js"></script>
 <script src="js/list.min.js"></script>
 <script src="js/d3viz.js"></script>
-<script>
-
-var html_load_img = "<img src=img/loading_small.gif>",
-    html_check_img = "<img src=img/checkmark.png>",
-    html_uncheck_img = "<img src=img/uncheckmark.png>";
-
-function ShowMsgBox(title, content) {
-  $("#msg-title").text(title);
-  $("#msg-content").text(content);
-  $('#dlg-msg').dialog('open');
-}
-
-$(document).ready(function() {
-  //////////////////////////////////////////////////////////////
-  //  Init UI
-  //////////////////////////////////////////////////////////////
-  
-  $('#divPop').hide();
-  jQuery.fn.popupDiv = function (divToPop, text) {
-  var pos=$(this).offset();
-  var h=$(this).height();
-  var w=$(this).width();
-  if (w == 0) w = 40;
-  if ( text != undefined ) {
-    $(divToPop).html(text);
-  }
-  $(divToPop).css({ left: pos.left + w , top: pos.top - h });
-  $(divToPop).show(function() {
-    setTimeout(function(){
-      $(divToPop).fadeOut('slow');
-    }, 2000);
-  });
-  };
-  $('#btnCreateW, #btnSpreg, #btnNewMap').css("opacity",1);
-  $('#btnOpenData').popupDiv('#divPop','Start by click this button to load your data.');
-  $('#img-id-chk').hide();
-  $('#img-id-spin').hide();
-  $('#img-id-nochk').hide();
-
-  $( "#dlg-msg" ).dialog({
-    dialogClass: "dialogWithDropShadow",
-    width: 400,
-    height: 200,
-    autoOpen: false,
-    modal: true,
-    buttons: {
-      OK: function() {$( this ).dialog( "close" );},
-    }
-  });
-
-  $('#dlg-msg').hide();
-  $('#btnCreateW').click(function(){
-    // pop-up weights creation dialog
-    //if (localStorage.getItem('HL_LAYER') != undefined) {
-      $('#dialog-weights').dialog('open');
-   //}
-  });
-  $('#btnSpreg').click(function(){
-    // pop-up weights creation dialog
-    //if (localStorage.getItem('HL_LAYER') != undefined) {
-      $('#dialog-regression').dialog('open');
-    //}
-  });
-  $('#btnNewMap').click(function(){
-    // pop-up weights creation dialog
-    //if (localStorage.getItem('HL_LAYER') != undefined) {
-    //}
-    $('#dlg-quantile-map').dialog('open');
-  });
-  //////////////////////////////////////////////////////////////
-  //  Drag & Drop
-  //////////////////////////////////////////////////////////////
-  var reader;
-  var progress = document.querySelector('.percent');
-  function updateProgress(evt) {
-    // evt is an ProgressEvent.
-    if (evt.lengthComputable) {
-      var percentLoaded = Math.round((evt.loaded / evt.total) * 100);
-      // Increase the progress bar length.
-      if (percentLoaded < 100) {
-        progress.style.width = percentLoaded + '%';
-        progress.textContent = percentLoaded + '%';
-      }
-    }
-  }
-  function handleFileSelect(evt) {
-    $("#"+evt.target.id).css("color", "#bbb");
-    evt.stopPropagation();
-    evt.preventDefault();
-  
-    // Reset progress indicator on new file selection.
-    progress.style.width = '0%';
-    progress.textContent = '0%';
-  
-    var formData = new FormData(),
-        files = evt.dataTransfer.files, // FileList object.
-        bJson = 0, bShp = [0, 0, 0],
-        shpFileName = "", shpFile;
-    $.each(files, function(i, f) {
-      var name = f.name,
-          suffix = getSuffix(name);
-      if (suffix === 'geojson' || suffix === 'json') {
-        bJson = 1;
-        shpFileName = name;
-        shpFile = f;
-      } else if (suffix === "shp") {
-        bShp[0] = 1;
-        shpFileName = name;
-        shpFile = f;
-      } else if (suffix === "shx") {
-        bShp[1] = 1;
-      } else if (suffix === "dbf") {
-        bShp[2] = 1;
-      }
-    });
-    // check files
-    if (!bJson && !bShp[0] && !bShp[1] && !bShp[2]) {
-      ShowMsgBox("Error", "Please drag&drop either one json/geojson file, or three files (*.shp, *.dbf and *.shx) ")
-      return false;
-    } else if (!bJson && (!bShp[0] || !bShp[1] || !bShp[2])) {
-      ShowMsgBox("Error", "Please drag&drop three files (*.shp, *.dbf and *.shx)  at the same time. (Tips: use ctrl (windows) or command (mac) to select multiple files.)")
-      return false;
-    } 
-    $.each(files, function(i, f) {
-      if ($.inArray(getSuffix(f.name), ['json','geojson','shp','shx','dbf'] ) >=0) {
-        formData.append('userfile', f, f.name);
-      }
-    });
-    // upload files to server
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', './cgi-bin/upload.py');
-    xhr.onload = function() {
-      console.log("[Upload]", this.responseText);
-      try{
-        var data = JSON.parse(this.responseText);
-        if ( data['uuid'] != undefined) {
-          var uuid = data["uuid"],
-              path = data["path"];
-          localStorage['HL_LAYER']= uuid;
-          socket.send('{"command":"new_data", "uuid":"'+uuid+'","path":"'+path+'"}');
-        }
-      } catch(e){
-        console.log("[Error][Upload Files]", e);
-      }
-      // Ensure that the progress bar displays 100% at the end.
-      progress.style.width = '100%';
-      progress.textContent = '100%';
-      setTimeout("document.getElementById('progress_bar').className='';", 2000);
-    }; 
-    xhr.upload.onprogress = updateProgress;
-    xhr.send(formData);
-    document.getElementById('progress_bar').className = 'loading';
-  }
-  function handleDragOver(evt) {
-    evt.stopPropagation();
-    evt.preventDefault();
-    evt.dataTransfer.dropEffect = 'copy'; // Explicitly show this is a copy.
-    $("#"+evt.target.id).css("color", "black");
-  }
-
-  function handleDragOut(evt) {
-    $("#"+evt.target.id).css("color", "#bbb");
-  }
-
-  // Setup the dnd listeners.
-  var dropZone = document.getElementById('drop_zone');
-  dropZone.addEventListener('dragover', handleDragOver, false);
-  dropZone.addEventListener('dragleave', handleDragOut, false);
-  dropZone.addEventListener('drop', handleFileSelect, false);
-
-});
-
-
-/*
-PySal can send a command "add_layer:{uri:abc.shp}" to ws server.
-Ws serverthen notifies all app web pages.--- ? Let's make it simple:
-There is only one main web page that communicate with WS server.
-This main web page can popup many child/sub pages for different maps/plots, 
-and they will communicate with each other using LocalStorage.
-
-If the user send "add_layer" command again with different data. This main page
-should stack the new layer as multi-layer scenario.
-*/
-var show_map = function(o){
-  var uuid = o.uuid;
-  if ( "uuid" in o && $('#'+o["uuid"]).length ){
-    // add layer in an existing map
-    uuid = o["uuid"];
-    var json_path = uuid + ".json";
-    var basemap = layerDict[uuid].basemap;
-    
-    d3.json(json_path, function(data) {
-      basemap.add_layer(data); 
-    });
-    
-  } else {
-    var json_path = "./tmp/" + uuid + ".json?"+Math.random().toString(36).substring(7);
-    $('<canvas id="' + uuid + '" width=733 height=564></canvas>')
-      .appendTo($('#map-container'));
-      
-    d3.json(json_path, function(data) {
-      map = new GeoVizMap(new JsonMap(data), $('#'+uuid));
-      mapDict[uuid] = map;
-      dataDict[uuid] = data;
-      
-      // fill dialogs
-      var tip = "Map UUID:"+uuid+". <br/>You can use this uuid in python to interact with maps.";
-      $('#map-uuid').empty().html(tip);
-      if (data) {
-        var field_names = [];
-        for (var field in data.features[0].properties) {
-          field_names.push(field);
-        }
-        field_names.sort();
-        // in weights creation dialog
-        $('#sel-w-id').find('option').remove().end();
-        $('#sel-w-id').append($('<option>', {value: ""}).text(""));
-        $.each(field_names, function(i, field_name) {
-          //if ( fields[field_name] != "String" ) {
-          if (field_name != "GEODAID") {
-            $('#sel-w-id').append($('<option>', {value: field_name}).text(field_name));
-          }
-        });
-        $('#sel-var').find('option').remove().end();
-        $('#sel-var').append($('<option>', {value: ""}).text(""));
-        $.each(field_names, function(i, field_name) {
-          //if ( fields[field_name] != "String" ) {
-          if (field_name != "GEODAID") {
-            $('#sel-var').append($('<option>', {value: field_name}).text(field_name));
-          }
-        });
-        // in regression dialog
-        if ( !$('#y_box').find(".placeholder")) 
-          $('#y_box').find('li').remove().end();
-        if ( !$('#x_box').find(".placeholder")) 
-          $('#x_box').find('li').remove().end();
-        if ( !$('#ye_box').find(".placeholder")) 
-          $('#ye_box').find('li').remove().end();
-        if ( !$('#inst_box').find(".placeholder")) 
-          $('#inst_box').find('li').remove().end();
-        if ( !$('#r_box').find(".placeholder")) 
-          $('#r_box').find('li').remove().end();
-        $('#ul-x-variables').find('li').remove().end();
-        $.each(field_names, function(i, field_name) {
-          if (field_name != "GEODAID") {
-            var item = $('#ul-x-variables').append('<li><p class="name">'+field_name+'</p></li>');
-          }
-        });
-        $( "#vars ul li" ).draggable({ helper: "clone" });
-        new List('vars', {valueNames:['name']});
-      }
-    });
-  }
-  $('#loading').remove();
-  
-  return uuid;
-};
-
-/*
-Reponse message handler
-*/
-var response_create_w = function(msg) {
-  if ( msg["success"] == 1) {
-    $('#txt-w-name').val("").next().remove();
-    $('#sel-w-id').next().remove();
-    //loadWnames();
-    $('#sel-w-id').prop("selectedIndex", -1);
-    ShowMsgBox("","Create weights done.");
-  } else {
-    ShowMsgBox("Error", "Create weights failed.");
-  }
-  $("#btn-create-w").attr("disabled",false)
-    .fadeTo(0, 1)
-    .prev().remove();
-  $('#dialog-weights').dialog("close");
-};
-
-
-var response_spatial_regression = function(msg) {
-  if ( msg["success"] == 1) {
-    $('#dlg-run').dialog("close");
-    if ( msg['report'] ) {
-      $('#btn_result').show();
-      var predy = "", summary = "", cnt= 0;
-      $.each(msg['report'], function(id, result) { 
-        cnt+=1;
-      });
-      cnt = cnt.toString();
-      $.each(msg['report'], function(id, result) {
-        var idx = parseInt(id) + 1
-        summary += "Report " + idx + "/" + cnt + 
-          "\n\n"+result['summary'] + "\n\n";
-        predy += "<b>Report " + idx + "/" + cnt +"</b><br/><br/>";
-        predy += "<table border=1 width=100% id='predy" + id + 
-          "'><tr><th>Predicted Values</th><th>Residuals</th></tr>";
-        var n = result['predy'][0].length;
-        for ( var i=0; i< n; i++ ) {
-          predy += "<tr><td>" + result['predy'][0][i] + "</td><td>" + 
-            result['residuals'][0][i] + "</td></tr>";
-        }
-        predy += "</table><br/><br/>";
-      });
-      $('#txt-spreg-predy').html(predy);
-      $('#txt-spreg-summary').text(summary);
-    }
-    $('#btn_result').popupDiv('#divPop','Click this button to see result.');
-  } else {
-    $('#dlg-run').dialog("close");
-    ShowMsgBox("Erro","Spatial regression failed.");
-  }
-};
-</script>
+<script src="js/portal.js"></script>
 </head>
 
 <body>
-<!--
-///////////////////////////////////////////////////////////////////////////////
-// Main Body
-///////////////////////////////////////////////////////////////////////////////
--->
-<table width="100%"> 
-  <tr>
-    <td height=145>
-    <div id="header"> 
-      <div class="container">
-        <img src="img/cloud.png"/>
-        <font style="color: #666;" size=16 face="Century Gothic">{</font>
-        <font style="color: #666; font-size: 30px">Web Portal for </font>
-        <font style="color: #666; font-size: 30px" face="Copperplate">PySAL</font>
-        </font><font style="color: #666;" size=16 face="Century Gothic">}</font>
-      </div>
-    </div>
-    </td>
-  </tr>
-  <tr>
-    <td valign="top" height=104>
-    <div id="toolbar">
+<div class="awesome-bar" style="background:#038D98;">
+  <div id="toolbar">
       <div style="clear: left;"></div>
       <table class="toolbar_tbl" align="left" >
-        <tr><td><div class="block_button" id="btnOpenData"></div></td>
+        <tr>
+        <td><span class="text-logo">D3Viz<span></td>
+        <td><div class="block_button" id="btnOpenData"></div></td>
         <td><div class="block_button" id="btnCreateW"></div></td>
         <td><div class="block_button" id="btnSpreg"></div></td>
-        <td><div class="block_button" id="btnAbout"></div></td>
         <td><div class="block_button" id="btnAddLayer"></div></td> 
         <td><div class="block_button" id="btnSave"></div></td> 
         <td><div class="block_button" id="btnShowTable"></div></td> 
@@ -474,38 +37,171 @@ var response_spatial_regression = function(msg) {
         <td><div class="block_button" id="btnScatterPlot"></div></td> 
         <td><div class="block_button" id="btnHist"></div></td> 
         <td><div class="block_button" id="btnPCP"></div></td> 
+        <td><div class="block_button" id="btnMoran"></div></td> 
         <td><div class="block_button" id="btnLISA"></div></td> 
+        <td><img src="https://geodacenter.asu.edu/drupal_files/geoda_logo.png" style="margin-left:30px;opacity:0.6;" height=22></td>
         </tr>
       </table>
     </div>
-  </td>
-  </tr>
-  <tr>
-    <td height=171>
-    <div id="file_div"> 
-      <div id="main_div" style="width: 80%;margin: 0 auto;">
-        <div id="file_choose_div" style="width: 100%; margin: 0 auto;">
-            <div id="drop_zone">Drop files here
-              <p style="font-size:12px;"><label id="lbl-drop-json">*.json</label>&nbsp;&nbsp;or &nbsp;&nbsp;
-              <label  id="lbl-drop-shp">*.shp</label>&nbsp;<label id="lbl-drop-dbf">*.dbf</label>
-              &nbsp;<label id="lbl-drop-shx">.shx</label>&nbsp;&nbsp;or &nbsp;&nbsp;
-              <label>*.zip</label></p>
-            </div>
-            <div id="progress_bar"><div class="percent">0%</div></div>
-      </div>
-    </div>
-    </td>
-  </tr>
-  <tr>
-    <td height=622>
-      <div id="map-container" style="margin-top:20px;border: 0px solid red;"></div>
-    </td>
-  </tr>
-</table>
-<center>
+</div>
+<!--
+///////////////////////////////////////////////////////////////////////////////
+// Main Body
+///////////////////////////////////////////////////////////////////////////////
+-->
+<div style="padding-top:100px"></div>
+<div id="map-container">
+  <div id="map">
+  </div>
+  <canvas id="foreground" style="position: absolute; top: 0; left: 0;width: 100%; height: 100%"></canvas>
+</div>
+
 <div id="map-uuid" style="width:300px;align:center;"></div>
 </center>
 <div id="divPop" class="bubble">This is Popup Div.</div>
+
+
+<!--
+///////////////////////////////////////////////////////////////////////////////
+// Open Files
+///////////////////////////////////////////////////////////////////////////////
+-->
+<div id="dialog-open-file"  title="Add Map Dialog">
+  <span> <br/><br/>You can load ESRI Shapefile files from local disk, or accessing from your Dropbox files.<br/><br/><br/></span>
+  <div id="tabs-dlg-open-file">
+    <ul>
+      <li><a href="#tabs-1">Local Disk</a></li>
+      <li><a href="#tabs-2">CartoDB</a></li>
+      <li><a href="#tabs-2">Dropbox</a></li>
+      <li><a href="#tabs-3">Existing Maps</a></li>
+    </ul>
+    <div id="tabs-1">
+      <div id="drop_zone">Drop files here
+        <p style="font-size:12px;"><label id="lbl-drop-json">*.json</label>&nbsp;&nbsp;or &nbsp;&nbsp;
+        <label  id="lbl-drop-shp">*.shp</label>&nbsp;<label id="lbl-drop-dbf">*.dbf</label>
+        &nbsp;<label id="lbl-drop-shx">.shx</label>&nbsp;&nbsp;or &nbsp;&nbsp;
+        <label>*.zip</label></p>
+      </div>
+      <div id="progress_bar"><div class="percent">0%</div></div>
+      <table>
+      </table>
+    </div>
+    <div id="tabs-2">
+      <form id="cartodb-form">
+        <table>
+          <tr>
+            <td>CartoDB user id</td>
+            <td>
+              <input type="text" id="txt-carto-id" size=55 value="lixun910">
+            </td>
+          </tr>
+          <tr>
+            <td>CartoDB app key</td>
+            <td>
+              <input type="text" id="txt-carto-key" size=55 value="340808e9a453af9680684a65990eb4eb706e9b56">
+            </td>
+          </tr>
+          <tr>
+            <td>CartoDB table name</td>
+            <td>
+              <input type="text" id="txt-carto-table" value="sf_plots" size=55>
+            </td>
+          </tr>
+        </table>
+      </form>
+    </div>
+    <div id="tabs-3">
+    </div>
+    <div id="tabs-4">
+    </div>
+  </div>
+</div>
+
+
+<!--
+///////////////////////////////////////////////////////////////////////////////
+//  LISA Map
+///////////////////////////////////////////////////////////////////////////////
+-->
+<div id="dlg-lisa-map" title="Create LISA Map">
+<br><br>
+  <table>
+  <tr>
+    <td width="200"><label for="name">Select a variable:</label></td>
+    <td><select id="sel-lisa-var"></td>
+  </tr>
+  <tr>
+    <td width="200"><label for="name">Select weights:</label></td>
+    <td><select id="sel-lisa-w"></td>
+  </tr>
+ </table> 
+</div>
+
+<!--
+///////////////////////////////////////////////////////////////////////////////
+// Moran Scatter Plot
+///////////////////////////////////////////////////////////////////////////////
+-->
+<div id="dlg-moran-scatter-plot" title="Open Moran Scatter Plot">
+<br><br>
+  <table>
+  <tr>
+    <td width="200"><label for="name">Select a variable:</label></td>
+    <td><select id="sel-moran-var"></td>
+  </tr>
+  <tr>
+    <td width="200"><label for="name">Select weights:</label></td>
+    <td><select id="sel-moran-w"></td>
+  </tr>
+ </table> 
+</div>
+
+<!--
+///////////////////////////////////////////////////////////////////////////////
+// Scatter Plot
+///////////////////////////////////////////////////////////////////////////////
+-->
+<div id="dlg-scatter-plot" title="Open Scatter Plot">
+<br><br>
+  <table>
+  <tr>
+    <td width="200"><label for="name">Select X variable:</label></td>
+    <td><label for="name">Select Y variable:</label></td>
+  </tr>
+  <tr>
+    <td><select id="sel-scatter-x"></td>
+    <td><select id="sel-scatter-y"></td>
+  </tr>
+ </table> 
+</div>
+
+<!--
+///////////////////////////////////////////////////////////////////////////////
+// Choroplet Map
+///////////////////////////////////////////////////////////////////////////////
+-->
+<div id="dlg-quantile-map" title="Open Choropleth Map">
+  <br/><br/>
+  <table>
+  <tr>
+    <td><label for="name">Select quantification method:</label></td>
+    <td><select id="sel-quan-method">
+      <option value="quantile">Quantile</option>
+      <option value="natural breaks">Natural Breaks</option>
+      <option value="equal interval">Equal Interval</option>
+      <option value="fisher jenks">Fisher Jenks</option>
+    </td>
+  </tr>
+  <tr>
+    <td><label for="name">Select a variable:</label></td>
+    <td><select id="sel-var"></td>
+  </tr>
+  <tr>
+    <td><label for="name">Input category number:</label></td>
+    <td><input type="text" id="quan-cate" class="text ui-widget-content ui-corner-all" value="5"></td>
+  </tr>
+ </table> 
+</div>
 
 <!--
 ///////////////////////////////////////////////////////////////////////////////
@@ -514,34 +210,7 @@ var response_spatial_regression = function(msg) {
 -->
 <div id="dialog-weights"  title="Weights Creation Dialog">
   <style>
-  .ui-widget-overlay { background: #aaa repeat-x; opacity: .8;}
-  table { border-spacing: 0;}
-  th { text-align: left; padding: 10px 0 10px 0; }
-  td { text-align: left;}
-  .custom-combobox { position: relative; display: inline-block;}
-  .custom-combobox-toggle {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    margin-left: -1px;
-    padding: 0;
-    /* support: IE7 */
-    *height: 1.7em;
-    *top: 0.1em;
-  }
-  .custom-combobox-input {
-    margin: 0;
-    padding: 0.3em;
-  }
-  .dlg-loading {
-    background: white url('img/loading_small.gif') center center no-repeat;
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 100%;
-    height: 100%;
-  }
-  </style>
+    </style>
   <table>
     <tr>
       <td><li>Please input a Weights name</li></td>
@@ -653,135 +322,6 @@ var response_spatial_regression = function(msg) {
   </table>
   <div class="dlg-loading"></div>
 </div> 
-<script>
-  // weights creation javascript code
-  $('#sel-w-files').change( function() {
-    var uuid = localStorage['HL_LAYER'];
-    var w_name = $('#sel-w-files').val();
-    if ( w_name && uuid ) {
-      var w_type = $('#sel-w-type').val();
-      $.download(
-        "../download_w/",
-        "uuid=" + uuid + "&w_name=" + w_name + "&w_type=" + w_type,
-        "get"
-      ); 
-    }
-    $(this).prop("selectedIndex", -1);
-  });
-  
-  $('.dlg-loading').hide();
-  $("#img-id-chk, #img-id-nochk, #img-id-spin").hide();          
-  $('#dist-slider').slider({
-    min: 0,
-    max: 100,
-    slide: function( event, ui ) { $('#txt-dist-thr').val(ui.value); }
-  });
-  $('#spn-pow-idst, #spn-cont-order, #spn-dist-knn').spinner();
-  $('#tabs-dlg-weights').tabs();
-  $('#sel-w-id').prop("selectedIndex", -1);
-  
-  $( "#dialog-weights" ).dialog({
-    height: 380,
-    width: 480,
-    autoOpen: false,
-    modal: true,
-    dialogClass: "dialogWithDropShadow",
-    buttons: [
-      {
-        text: "Create",
-        id: "btn-create-w",
-        click: function() {
-          var uuid = localStorage['HL_LAYER'];
-          if ( uuid == undefined ) return;
-          var w_name = $('#txt-w-name').val(),
-          w_id = $('#sel-w-id').find(":selected").val(),
-          active = $('#tabs-dlg-weights').tabs("option","active");
-          if ( w_name.length == 0 ) {
-            ShowMsgBox("Error", "Weights name can't be empty.");
-            return;
-          }
-          if ( w_id.length == 0 || $('#img-id-nochk').is(":visible") ) {
-            ShowMsgBox("Error", "An unique ID for weights creation is required.");
-            return;
-          }
-          var post_param = {
-            'w_id': w_id, 'w_name': w_name, 
-          };
-            
-          if ( active == 0 ) {
-            var cont_type = $('#sel-cont-type').find(":selected").val(),
-                cont_order = $('#spn-cont-order').val(),
-                cont_ilo = $('#cbx-cont-ilo').prop("checked");
-                post_param['cont_type'] = parseInt(cont_type);
-                post_param['cont_order'] = parseInt(cont_order);
-                post_param['cont_ilo'] = cont_ilo;
-    
-          } else if ( active == 1) {
-            var dist_value = "",
-                dist_metric = $('#sel-dist-metr').val(),
-                dist_method =$('input:radio[name=rdo-dist]:checked').attr("id");
-      
-            if ( dist_method == 0 ) {
-              dist_value = $('#spn-dist-knn').val();
-            } else if ( dist_method == 1 ) {
-              dist_value = $('#txt-dist-thr').val();
-            } else if ( dist_method == 2 ) {
-              dist_value = $('#txt-dist-thr').val() + "," + $('#spn-pow-idst').val();
-            } else {
-              ShowMsgBox("","Please select a distance method.");
-              return;
-            }
-    
-            post_param['dist_metric'] = dist_metric;
-            post_param['dist_method'] = dist_method;
-            post_param['dist_value'] = parseFloat(dist_value);
-  
-          } else if ( active == 2) {
-            post_param['kernel_type'] = $("#sel-kel-type").val(); 
-            post_param['kernel_nn'] = parseInt($("#txt-kel-nn").val());
-          }
-    
-          // submit request
-          $("#btn-create-w").attr("disabled",true).fadeTo(0, 0.5);
-          $(html_load_img).insertBefore("#btn-create-w");
-          post_param['w_type'] = active;
-          
-          var msg = {
-            "uuid": uuid, "command":"create_w", "parameters": post_param
-          };
-          socket.send(JSON.stringify(msg));
-          /*
-          $.post("../create_weights/", post_param, function(){})
-            .done(function( data ) {
-              console.log("create_weights", data);
-              if ( data["success"] == 1 ) {
-                $('#txt-w-name').val("").next().remove();
-                $('#sel-w-id').next().remove();
-                //loadWnames();
-                $('#sel-w-id').prop("selectedIndex", -1);
-                ShowMsgBox("","Create weights done.");
-                return;
-              }
-              ShowMsgBox("Error", "Create weights failed.");
-            })
-            .fail(function() { ShowMsgBox("Error", "Create weights failed."); })
-            .always(function(){
-              $("#btn-create-w").attr("disabled",false)
-                .fadeTo(0, 1)
-                .prev().remove();
-            });
-          */
-          }
-        },
-        {
-          text: "Close",
-          click: function() {
-            $( this ).dialog( "close" );
-          },
-        }
-      ]
-  });
-</script>
 
 <!--
 ///////////////////////////////////////////////////////////////////////////////
@@ -789,41 +329,6 @@ var response_spatial_regression = function(msg) {
 ///////////////////////////////////////////////////////////////////////////////
 -->
 
-<style>
-  .ui-widget-overlay { background: #eee repeat-x; opacity: .8;}
-  table { border-spacing: 0;}
-  th { text-align: left; padding: 10px 0 10px 0; }
-  h1 { padding: .2em; margin: 0; font-size: 13px;}
-  ol li:hover {background-color: #eee;}
-  .list { margin:0; padding:0px 0 0; }
-  .list li {
-    display:block; background-color: #ddd; padding:1px; box-shadow: inset 0 1px 0 #fff; height: 20px;  cursor: pointer; cursor: hand; vertical-align: bottom;
-  }
-  .list li p { margin: 0px; padding: 4px 0px 0px 10px; vertical-align: bottom; }
-  .list li:nth-child(odd) {background: #fff;}
-  .list li:hover { background-color: orange; }
-  .dialogWithDropShadow{
-    -webkit-box-shadow: 0px 0px 20px rgba(0, 0, 0, 0.5);  
-    -moz-box-shadow: 0px 0px 20px rgba(0, 0, 0, 0.5); 
-  }
-  #weights { width: 600px; height: 90px; margin-right: 2em; display:block;}
-  #weights select {width: 90%;}
-  #w_catalog_model {width: 48%; float: left;}
-  #w_catalog_kernel {width: 50%; float: right;}
-  #model_spec { width: 600px; margin-right: 2em; height:370px; display:block;}
-  #y_catalog {width: 48%; float: left;}
-  #x_catalog {width: 50%; float: right;}
-  #x_catalog.x_box {height: 200px;}
-  #var_list { width: 200px; }
-  /* style the list to maximize the droppable hitarea */
-  .drop_box ol { list-style-type: circle; height: 100px; margin: 0; padding: 1em 0 1em 2em; }
-  #x_box ol {height: 215px;}
-
-  #estimation { width: 600px; margin-right: 2em; height:170px; display:block;}
-  .est_tab { border: 1px #bbb solid; border-radius:5px; width: 32%; height: 120px; float: left; margin: 15px 1px 0 0; padding-left: 5px;}
-  .est_tab p { margin: -5px 0 5px 5px; background-color: white; width: 100px; text-align:center; font-weight: bold;}
-  .est_tab input { margin-bottom: 8px;}
-</style>
 <div id="dialog-regression" title="Spatial Regression Dialog"> 
   <p style="text-align: left">
   <button id="btn_open_model">Open Model</button>
@@ -961,39 +466,6 @@ var response_spatial_regression = function(msg) {
     </div>
   </div>
 </div>
-<script>
-var prev_obj;
-// save spreg result to datasource
-$('#btn-save-predy').click(function() {
-  var count=0, param;
-  $('#txt-spreg-predy').children("table").each(function(i,tbl) {
-    var content = $(tbl).html().replace(/\<th\>|\<\/th\>|\<tbody\>|\<\/tbody\>|\<tr\>|\<\/tr\>|\<\/td\>/g,"").replace(/\<td\>/g,",");
-    if (param == undefined) param = {};
-    param["predy" + i] = content;
-    count = i;
-  });
-  var uuid = localStorage['HL_LAYER'];
-  if (param && uuid) {
-    param["n"] = count+1;
-    param["uuid"] = uuid;
-
-    $(this).attr("disabled", "disabled");
-    $(html_load_img).insertAfter("#btn-save-predy");
-  
-    $.post("../save_spreg_result/", param, function() {
-    }).done( function(result) {
-      console.log(result);
-    }).always( function() {
-      $("#btn-save-predy").next().remove();
-      $(html_check_img).insertAfter("#btn-save-predy");
-    });
-  }
-});
-// save spreg result to csv
-$('#btn-export-predy').on('click', function(event) {
-  exportTableToCSV.apply(this, [$('#txt-spreg-predy>table'),'export.csv']);
-});
-</script>
 
 <div id="dialog-preference" title="Preference">
   <form id="form-pref">
@@ -1153,382 +625,6 @@ $('#btn-export-predy').on('click', function(event) {
     <select id="open_spreg_model">
     </select>
 </div>
-
-<div id="dlg-quantile-map" title="Open Quantile Map">
-  <table><tr>
-    <td><label for="name">Select a variable:</label></td>
-    <td><select id="sel-var">select></td>
-  </tr>
-  <tr>
-    <td><label for="name">Input a quantile category:</label></td>
-    <td><input type="text" id="quantile-cate" class="text ui-widget-content ui-corner-all" value="5"></td>
-  </tr>
- </table> 
-</div>
-
-<script>
-  // reset Spreg dialog
-  var restSpreg = function() {
-    $.each($('#x_box li, #y_box li, #ye_box li, #inst_box li, #r_box li'), function(i, v) { $(v).dblclick();});
-    $('input[name="model_type"][value="0"]').prop('checked', true)
-    $('input[name="method"]').prop('disabled', true)
-    $('input[name="method"][value="0"]').prop('checked', true).prop('disabled', false);
-    $('input:checkbox[name=stderror]').each(function(i,obj){
-      $(obj).prop('checked', false);
-    });
-  };
-  // init Spreg dialg: tabs
-  $( "#y_catalog" ).accordion();
-  $( "#x_catalog" ).accordion();
-  $( "#w_catalog_model" ).accordion();
-  $( "#w_catalog_kernel" ).accordion();
-  $( "#vars ul li" ).draggable({
-    helper: "clone"
-  });
-  $( ".drop_box ol li" ).dblclick(function() {});
-  $( ".drop_box ol" ).droppable({
-    activeClass: "ui-state-default",
-    hoverClass: "ui-state-hover",
-    accept: ":not(div)",
-    drop: function( event, ui ) {
-      $( this ).find( ".placeholder" ).remove();
-      // customized behavior for different dropbox
-      var box_id = $(this).closest("div").attr("id");
-      var n_items = $(this).children().length;
-      if ( n_items > 0) {
-        if (box_id === 'y_box'||box_id==='r_box') 
-          return; 
-      }
-      // drop gragged item
-      $( "<li></li>" ).text( ui.draggable.text() ).appendTo( this ).dblclick(function(){
-        $(this).remove();
-        ui.draggable.show();
-      });
-      ui.draggable.hide();
-    }
-  }).sortable({
-    items: "li:not(.placeholder)",
-    sort: function() {
-      // gets added unintentionally by droppable interacting with sortable
-      // using connectWithSortable fixes this, but doesn't allow you to customize active/hoverClass options
-      $( this ).removeClass( "ui-state-default" );
-    }
-  });
-
-  // model type
-  $('input:radio[name=model_type]').click( function() {
-    var model_type = $(this).val();
-    if ( model_type == 0 ) {
-      $("input[name='method'], input[name='stderror']").prop('disabled', false);
-      $('#ml, #gmm, #het').prop('disabled', true);
-      $('#ols').prop('checked', true);
-      $("input[name='stderror']").prop('checked', false);
-    } else if ( model_type == 1 ) {
-      $("input[name='method'], input[name='stderror']").prop('disabled', false);
-      $('#ols, #het').prop('disabled', true);
-      $('#gmm').prop('checked', true);
-      $("input[name='stderror']").prop('checked', false);
-    } else if ( model_type == 2 ) {
-      $("input[name='method'], input[name='stderror']").prop('disabled', false);
-      $('#ols, #white, #hac').prop('disabled', true);
-      $('#gmm').prop('checked', true);
-      $("input[name='stderror']").prop('checked', false);
-    } else if ( model_type == 3 ) {
-      $("input[name='method'], input[name='stderror']").prop('disabled', false);
-      $('#ols, #ml, #white, #hac').prop('disabled', true);
-      $('#gmm').prop('checked', true);
-      $("input[name='stderror']").prop('checked', false);
-    }
-  });
-  $('input:radio[name=model_type]:first').click();
-
-  $( "#dialog-preference" ).dialog({
-    height: 400,
-    width: 580,
-    autoOpen: false,
-    modal: true,
-    dialogClass: "dialogWithDropShadow",
-    buttons: {
-      "Restore Defaults": function() {
-        $( this ).dialog( "close" );
-      },
-      "Restore System Defaults": function() {
-        $( this ).dialog( "close" );
-      },
-      Cancel: function() {
-        $( this ).dialog( "close" );
-      },
-      "Save": function() {
-        console.log($("#form-pref").serialize());
-        $.ajax({
-        url: "../save_spreg_p/",
-          type: "post",
-          data: $("#form-pref").serialize(),
-          success: function( data ) {}
-        });
-      },
-    }
-  });
-  $( "#dialog-spreg-result" ).dialog({
-    height: 500,
-    width: 800,
-    autoOpen: false,
-    modal: true,
-    dialogClass: "dialogWithDropShadow",
-    buttons: {
-      Cancel: function() {$( this ).dialog( "close" );},
-    }
-  });
-  
-  var options = { valueNames: ['name'] };
-  var varList = new List('vars', options);
-  
-  $( "#dialog-regression" ).dialog({
-    dialogClass: "dialogWithDropShadow",
-    width: 900,
-    height: 800,
-    autoOpen: false,
-    modal: true,
-  });
-    
-  $( "#dlg-add-uniqid" ).dialog({
-    dialogClass: "dialogWithDropShadow",
-    width: 400,
-    height: 200,
-    autoOpen: false,
-    modal: true,
-    buttons: {
-      "Add": function() {
-        var that = $(this);
-        var uuid = localStorage.getItem('HL_LAYER');
-        if ( uuid ) {
-          var name = $('#uniqid_name').val(),
-              conti = true;
-          $.each($('#sel-w-id').children(), function(i,j) { 
-            if( name == $(j).text()) {
-              ShowMsgBox("","Input unique ID field already exists.");
-              conti = false;
-              return;
-            }
-          })
-          if ( conti == true ) {
-            params = { 'uuid': uuid, 'name': name};
-            $.post("../add_UID/", params, function() {
-            }).done(function(data) { 
-              console.log("add_uid", data); 
-              if (data["success"] == 1) {
-                loadFieldNames(function(){
-                  $('#sel-w-id').val(name).change()
-                });
-                that.dialog( "close" );
-                ShowMsgBox("", "Add uniue ID successful.");
-                ;
-              }
-            });
-          }
-        }
-      },
-      Cancel: function() {$( this ).dialog( "close" );},
-    }
-  });
-  $( "#dlg-save-model" ).dialog({
-    dialogClass: "dialogWithDropShadow",
-    width: 400,
-    height: 200,
-    autoOpen: false,
-    modal: true,
-    buttons: {
-      "Save": function() {
-        var uuid = localStorage.getItem('HL_LAYER');
-        if ( uuid ) {
-          var w_list = $.GetValsFromObjs($('#sel-model-w-files :selected'));
-          var wk_list = $.GetValsFromObjs($('#sel-kernel-w-files :selected'));
-          var model_type = $('input:radio[name=model_type]:checked').val();
-          var method = $('input:radio[name=method]:checked').val();
-          var name = $('#model_name').val();
-          var x = $.GetTextsFromObjs($('#x_box li'));
-          var y = $.GetTextsFromObjs($('#y_box li'));
-          var ye = $.GetTextsFromObjs($('#ye_box li'));
-          var h = $.GetTextsFromObjs($('#inst_box li'));
-          var r = $.GetTextsFromObjs($('#r_box li'));
-          //var t = $.GetTextsFromObjs($('#t_box li'));
-          var t = [];
-          var error = [0,0,0];
-          $('input:checkbox[name=stderror]').each(function(i,obj){
-            if (obj.checked) error[i] = 1;
-          });
-          params = { 'uuid': uuid, 'name': name, 'w': w_list, 'wk': wk_list, 'type': model_type, 'method': method, 'error': error, 'x': x, 'y': y, 'ye': ye, "h": h, "r": r, "t": t};
-          console.log(params);
-          
-          $.post("../save_spreg_model/", params, function() {
-          }).done(function(data) { 
-            console.log(data); 
-            loadModelNames();
-            ShowMsgBox("","Save model done.");
-          });
-        }
-        $(this).dialog("close");
-      },
-      Cancel: function() {$( this ).dialog( "close" );},
-    }
-  });
-    
-  $( "#dlg-open-model" ).dialog({
-    dialogClass: "dialogWithDropShadow",
-    width: 400,
-    height: 200,
-    autoOpen: false,
-    modal: true,
-    buttons: {
-      "Open": function() {
-        var uuid = localStorage.getItem('HL_LAYER');
-        if ( uuid ) {
-          var model_name = $('#open_spreg_model').val();
-          if (model_name ) {
-            $.get("../load_spreg_model/", {'uuid':uuid,'name':model_name}, function(){})
-            .done(function(data) {
-              console.log(data);
-              if ( data["success"] != 1 ) {
-                console.log("load spreg model failed.");
-              } else {
-                resetSpreg();
-                $('input[name="model_type"][value='+data['type']+']').prop('checked', true);
-                $('input[name="method"][value='+data['method']+']').prop('checked', true);
-                var error = data['stderror'];
-                $('input:checkbox[name=stderror]').each(function(i,obj){
-                  if (error[i] == 1) $(obj).prop('checked', true);
-                });
-                $.each( data['w'], function(i, w) {$('#sel-model-w-files').val(w);});
-                $.each( data['kw'], function(i, w) {$('#sel-kernel-w-files').val(w);});
-                var load_vars = function( vars, box ) {
-                  $.each( vars, function(i, v) {
-                    if ( v && v.length > 0 ) {
-                      if (i == 0) box.find( ".placeholder" ).remove();
-                      var item = $('#ul-x-variables p').filter(function(i, p){ 
-                        return $(p).text() == v;
-                      }).parent().hide();
-                      var ctn = box.closest("div").children().first();
-                      $( "<li></li>" ).text(v).appendTo(ctn).dblclick(function(){
-                        $(this).remove();
-                        item.show();
-                      });
-                    }
-                  });
-                };
-                load_vars( data['y'], $('#y_box') );
-                load_vars( data['x'], $('#x_box') );
-                load_vars( data['ye'], $('#ye_box') );
-                load_vars( data['h'], $('#inst_box') );
-                load_vars( data['r'], $('#r_box') );
-                //load_vars( data['t'], $('#t_box') );
-              } 
-            });
-          }
-        }
-        $(this).dialog("close");
-      },
-      Cancel: function() {$( this ).dialog( "close" );},
-    },
-  });
-    
-  $( "#dlg-quantile-map" ).dialog({
-    dialogClass: "dialogWithDropShadow",
-    width: 400,
-    height: 200,
-    autoOpen: false,
-    modal: true,
-    buttons: {
-      "Open": function() {
-        var uuid = localStorage.getItem('HL_LAYER');
-        var sel_var = $('#sel-var').val();
-        var sel_cat = $('#quantile-cate').val();
-        socket.send('{"command":"new_quantile_map","uuid":"'+uuid+'","var":"'+sel_var+'","category":'+sel_cat+'}');
-        $(this).dialog("close");
-      }, 
-      Cancel: function() {$( this ).dialog( "close" );},
-    },
-  });
-  
-  $( "#tabs" ).tabs();
-  $( "#spreg-result-tabs" ).tabs();
-  
-  $( "#btn_open_model" ).button({icons: {primary: "ui-icon-folder-open"}})
-  .click(function() {
-    $('#dlg-open-model').dialog('open');
-  });
-  $( "#btn_save_model" ).button({icons: {primary: "ui-icon-disk"}})
-  .click(function() {
-    $('#dlg-save-model').dialog('open');
-  });
-  
-  $( "#btn_reset_model" ).button({icons: {primary: "ui-icon-)circle-close"}})
-  .click(function() { restSpreg(); });
-  
-  $( "#btn_preference" ).button({icons:{primary: "ui-icon-gear",}})
-  .click(function(){ $('#dialog-preference').dialog('open');});
-  
-  $( "#btn_result" ).button({icons: {primary: "ui-icon-document",}})
-  .click(function(){
-    $('#dialog-spreg-result').dialog('open').draggable('disable');
-  }).hide();
-    
-  $( "#btn_create_w" ).button({icons: {primary: "ui-icon-plus",}})
-  .click(function(){
-    $('#dialog-weights').dialog('open');
-  });
-    
-  $( "#btn_run" ).button({icons: {primary: "ui-icon-circle-triangle-e",}})
-  .click(function() {
-    var uuid = localStorage.getItem('HL_LAYER');
-    if (  uuid == undefined ) {
-      console.log("Error: uuid is not defined.");
-      return;
-    }
-    var w_list = $.GetValsFromObjs($('#sel-model-w-files :selected'));
-    var wk_list = $.GetValsFromObjs($('#sel-kernel-w-files :selected'));
-    var model_type = $('input:radio[name=model_type]:checked').val();
-    var method = $('input:radio[name=method]:checked').val();
-    // y, x, w, 
-    var x = $.GetTextsFromObjs($('#x_box li'));
-    var y = $.GetTextsFromObjs($('#y_box li'))[0];
-    var ye = $.GetTextsFromObjs($('#ye_box li'));
-    var h = $.GetTextsFromObjs($('#inst_box li'));
-    var r = $.GetTextsFromObjs($('#r_box li'));
-    //var t = $.GetTextsFromObjs($('#t_box li'));
-    var t = [];
-    // check error flag 
-    var error = [0,0,0];
-    var conti = true;
-    $('input:checkbox[name=stderror]').each(function(i,obj){
-      if (obj.checked){ 
-      error[i] = 1;
-        if ( i==1 && w_list.length == 0 ) {
-          ShowMsgBox("","Please select weights file for model.");
-          conti = false;
-          return;
-        }
-        if ( i==1 && wk_list.length == 0 ) {
-          ShowMsgBox("","Please select kernel weights file for model.");
-          conti = false;
-          return;
-        }
-      }
-    });
-    if ( conti == false) return;
-    // run model
-    $('#dlg-run').dialog("open").html('<img src="img/loading.gif"/><br/>Loading ...');
-    $('#dlg-run').siblings('.ui-dialog-titlebar').hide();
-    params = {'command': 'spatial_regression',
-      'uuid': uuid, 'w': w_list, 'wk': wk_list, 
-      'type': parseInt(model_type), 'method': parseInt(method), 'error': error, 
-      'x': x, 'y': y, 'ye': ye, "h": h, "r": r, "t": t,
-    };
-    
-    socket.send(JSON.stringify(params));
-    $('#btn_result').hide();
-  });
-</script>
-
 <!--
 ///////////////////////////////////////////////////////////////////////////////
 // Other Dialogs

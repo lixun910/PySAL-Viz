@@ -19,6 +19,8 @@
     this.container = container;
     
     this.RequestParam_callback = undefined;
+    this.CreateWeights_callback = undefined;
+    this.RunSpreg_callback = undefined;
     
     self = this;
   };
@@ -257,12 +259,69 @@
     localStorage['HL_IDS'] = JSON.stringify(hl_ids);
   };
   
+  d3viz.prototype.NewDataFromWeb = function(msg) {
+    if (this.socket.readyState == 1) {
+      this.socket.send(JSON.stringify(msg));
+    } else {
+      setTimeout(function(){self.NewDataFromWeb(msg)}, 10);
+    }
+  };
+  
+  d3viz.prototype.NewChoroplethMap = function(msg) {
+    if (this.socket.readyState == 1) {
+      this.socket.send(JSON.stringify(msg));
+    } else {
+      setTimeout(function(){self.NewChoroplethMap(msg)}, 10);
+    }
+  };
+  
+  d3viz.prototype.NewScatterPlot = function(msg) {
+    if (this.socket.readyState == 1) {
+      this.socket.send(JSON.stringify(msg));
+    } else {
+      setTimeout(function(){self.NewMoranScatterPlot(msg)}, 10);
+    }
+  };
+  
+  d3viz.prototype.NewMoranScatterPlot = function(msg) {
+    if (this.socket.readyState == 1) {
+      this.socket.send(JSON.stringify(msg));
+    } else {
+      setTimeout(function(){self.NewMoranScatterPlot(msg)}, 10);
+    }
+  };
+  
+  d3viz.prototype.NewLISAMap= function(msg) {
+    if (this.socket.readyState == 1) {
+      this.socket.send(JSON.stringify(msg));
+    } else {
+      setTimeout(function(){self.NewLISAMap(msg)}, 10);
+    }
+  };
+  
+  d3viz.prototype.RunSpreg = function(msg, callback) {
+    if (this.socket.readyState == 1) {
+      this.socket.send(JSON.stringify(msg));
+      this.RunSpreg_callback = callback;
+    } else {
+      setTimeout(function(){self.RunSpreg(msg, callback)}, 10);
+    }
+  };
+  
+  d3viz.prototype.CreateWeights = function(msg, callback) {
+    if (this.socket.readyState == 1) {
+      this.socket.send(JSON.stringify(msg));
+      this.CreateWeights_callback = callback;
+    } else {
+      setTimeout(function(){self.CreateWeights(msg, callback)}, 10);
+    }
+  };
+  
   d3viz.prototype.RequestParameters = function( winID, callback) {
     var msg = {'command':'request_params', 'wid' : winID};
     if (this.socket.readyState == 1) {
       this.socket.send(JSON.stringify(msg));
       this.RequestParam_callback = callback;
-      
     } else {
       setTimeout(function(){self.RequestParameters( winID, callback)}, 10);
     }
@@ -295,6 +354,12 @@
             if (typeof self.RequestParam_callback === "function") {
               self.RequestParam_callback(msg.parameters);
             }
+          } else if ( command == "rsp_create_w" && self.id == winID) {
+            self.CreateWeights_callback(msg.content);
+            
+          } else if ( command == "rsp_spatial_regression" && self.id == winID) {
+            self.RunSpreg_callback(msg);
+            
           } else if ( command == "select" ) {
             self.SelectOnMap(msg); //
           } 

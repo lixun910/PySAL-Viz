@@ -22,6 +22,12 @@ svg, canvas {
   stroke: #000;
   shape-rendering: crispEdges;
 }
+.axis-rule {
+  fill: none;
+  shape-rendering: crispEdges;
+  stroke: #e0e0e0;
+  stroke-width: 2.5px;
+}
 .line {
   fill-opacity: 0;
   stroke-width: 4;
@@ -231,8 +237,13 @@ $(document).ready(function() {
         .call(brush.event);
         
     // don't want dots overlapping axis, so add in buffer to data domain
-    xScale.domain([xMin - xExt, xMax + xExt]);
-    yScale.domain([yMin - yExt, yMax + yExt]);
+    var xValueRange = -xMin > xMax ? 
+          [xMin -xExt, -xMin + xExt] : [-xMax - xExt, xMax + xExt],
+        yValueRange = -yMin > yMax ? 
+          [yMin -yExt, -yMin + yExt] : [-yMax - yExt, yMax + yExt];
+          
+    xScale.domain(xValueRange);
+    yScale.domain(xValueRange);
   
     // x-axis
     svg.append("g")
@@ -257,6 +268,22 @@ $(document).ready(function() {
         .attr("dy", ".71em")
         .style("text-anchor", "end")
         .text(fieldY);
+        
+    svg.append("g").append("line")
+        .attr("class", "axis-rule")
+        .style("stroke-dasharray", ("3, 3")) 
+        .attr("x1", 0)
+        .attr("x2", width)
+        .attr("y1", height / 2.0)
+        .attr("y2", height / 2.0);
+        
+    svg.append("line")
+        .attr("class", "axis-rule")
+        .style("stroke-dasharray", ("3, 3")) 
+        .attr("x1", width / 2.0)
+        .attr("x2", width / 2.0)
+        .attr("y1", 0)
+        .attr("y2", height);
         
     // draw points
     var bgCtx = background.getContext('2d');
