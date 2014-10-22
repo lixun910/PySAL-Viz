@@ -1,8 +1,13 @@
 
 (function(window,undefined){
 
-  var d3viz = function(container) {
+  /***
+   * One web page <---> one d3viz
+   */
+  var d3viz = function(wid, container, canvas) {
   
+    this.id = wid;
+    this.socket = undefined;
     this.map = undefined;
     this.version = "0.1";
     this.mapDict = {};
@@ -10,10 +15,10 @@
     this.popupWins = {}; //messageID:window
     this.msgDict = {};
     
-    this.canvas = undefined;
+    this.canvas = canvas;
     this.container = container;
     
-    this.ShowMap_callback = undefined;
+    this.RequestParam_callback = undefined;
     
     self = this;
   };
@@ -42,21 +47,22 @@
       var hl_ids = JSON.parse(localStorage.getItem('HL_IDS')),
           hl_ext = JSON.parse(localStorage.getItem('HL_MAP'));
       for ( var uuid in hl_ids ) {
-        if ( uuid in mapDict ) {
+        if ( mapDict && uuid in mapDict ) {
           var map = mapDict[uuid];
           var ids = hl_ids[uuid];
-          console.log("highlight");
-          if ( uuid in hl_ext ) {
+          if ( hl_ext && uuid in hl_ext ) {
             map.highlightExt(ids, hl_ext[uuid]);
-          } else if ( uuid in hl_ids ) {
-            map.highlight(hl_ids[uuid]);
+          } else if ( hl_ids && uuid in hl_ids ) {
+            var context = undefined;
+            var nolinking = true;
+            map.highlight(hl_ids[uuid], context, nolinking);
           }
         }
       }
     }, false);
   };
     
-  
+   
   /**
    * Setup and function for PopUp window
    */
@@ -81,34 +87,28 @@
     );
     this.popupWins[msg.id] = win;
   };
+ 
+   
+  d3viz.prototype.GetJsonUrl = function(uuid) {
+    var json_url = "./tmp/" + uuid + ".json";
+    return json_url; 
+  };
   
   /**
    * Show a base map
    * parameters: canvas -- $() jquery object
    * parameters: container -- $() jquery object
    */
-  d3viz.prototype.ShowMap = function(msg) {
-    if ( "uuid" in msg ){
-      var canvas = this.canvas,
-          container = this.container,
-          uuid = msg.uuid,
-          json_path = this.RandUrl("./tmp/" + uuid + ".json");
-      if ( canvas && canvas.length > 0) {
-        var old_uuid = canvas.attr('id');
-        delete this.mapDict[old_uuid];
-        delete this.dataDict[old_uuid];
-        delete this.map;
-        canvas.remove();
-      }
-      this.canvas = $('<canvas id="' + uuid + '"></canvas>').appendTo(container);
-      this.GetJSON( json_path, function(data) {
-        self.map = new GeoVizMap(new JsonMap(data), self.canvas);
-        self.mapDict[uuid] = self.map;
-        self.dataDict[uuid] = data;
-      });
-    }
-    if (typeof this.ShowMap_callback === "function") {
-      this.ShowMap_callback();
+  d3viz.prototype.ShowMap = function(uuid, callback) {
+    var json_url = this.GetJsonUrl(uuid);
+    this.canvas = $('<canvas id="' + uuid + '"></canvas>').appendTo(this.container);
+    this.GetJSON( json_url, function(data) {
+      self.map = new GeoVizMap(new JsonMap(data), self.canvas);
+      self.mapDict[uuid] = self.map;
+      self.dataDict[uuid] = data;
+    });
+    if (typeof callback === "function") {
+      callback();
     }
   };
   
@@ -133,29 +133,44 @@
   /**
    * Create a new thematic map
    */
-  d3viz.prototype.ShowThematicMap = function(msg) {
-    if ("basemap" in msg) {
-      // for basemap case e.g. leaflet map, the following will translate to 
-      // leaflet_map(msg);
-      d3viz[msg["basemap"]](msg);
-    } else {
-      var type = msg["type"],
-          uuid = msg["uuid"];
-      this.NewPopUp('map.html?type='+type+'&uuid='+uuid, msg);
+  d3viz.prototype.ShowThematicMap = function(uuid, colorTheme, callback) {
+    var json_url = this.GetJsonUrl(uuid);
+    this.canvas = $('<canvas id="' + uuid + '"></canvas>').appendTo(this.container);
+    this.GetJSON( json_url, function(data) {
+      self.map = new GeoVizMap(new JsonMap(data), self.canvas, {
+        "color_theme" : colorTheme
+      });
+      self.mapDict[uuid] = self.map;
+      self.dataDict[uuid] = data;
+      if (typeof callback === "function") {
+        callback();
+      }
+    });
+  };
+  
+  d3viz.prototype.UpdateThematicMap = function(uuid, newColorTheme, callback) {
+    var map = self.mapDict[uuid];
+    map.updateColor(newColorTheme);
+    if (typeof callback === "function") {
+      callback();
     }
   };
   
   /**
    * Create a new Leaftlet map
    */
-  d3viz.prototype.ShowLeafletMap = function(msg) {
-    var type = msg["type"];
-    var w = window.open(
-      this.RandUrl('leaflet_map.html?type=' + type), // quantile, lisa,
-      "_blank",
-      "width=900, height=700, scrollbars=yes"
-    );
-    this.popupWins[msg.id] = w;
+  d3viz.prototype.ShowLeafletMap = function(uuid, L, lmap, options, callback) {
+    var json_url = this.GetJsonUrl(uuid);
+    //already have canvas as foreground
+    //this.canvas = $('<canvas id="' + uuid + '"></canvas>').appendTo(this.container);
+    this.GetJSON( json_url, function(data) {
+      self.map = new GeoVizMap(new LeafletMap(data, L, lmap), self.canvas, options);
+      self.mapDict[uuid] = self.map;
+      self.dataDict[uuid] = data;
+      if (typeof callback === "function") {
+        callback();
+      }
+    });
   };
  
   /**
@@ -242,10 +257,18 @@
     localStorage['HL_IDS'] = JSON.stringify(hl_ids);
   };
   
+  d3viz.prototype.RequestParameters = function( winID, callback) {
+    var msg = {'command':'request_params', 'wid' : winID};
+    if (this.socket.readyState == 1) {
+      this.socket.send(JSON.stringify(msg));
+      this.RequestParam_callback = callback;
+      
+    } else {
+      setTimeout(function(){self.RequestParameters( winID, callback)}, 10);
+    }
+  };
   /**
    * Setup WebSocket Server Communications
-   */
-   /*
   PySal can send a command "add_layer:{uri:abc.shp}" to ws server.
   Ws serverthen notifies all app web pages.--- ? Let's make it simple:
   There is only one main web page that communicate with WS server.
@@ -257,7 +280,30 @@
   */
   d3viz.prototype.SetupWebSocket = function(server_addr) {
     if (! ("WebSocket" in window)) WebSocket = MozWebSocket; // firefox
-    socket = new WebSocket("ws://127.0.0.1:9000");
+    this.socket = new WebSocket("ws://127.0.0.1:9000");
+    var socket = this.socket;
+    socket.onopen = function(event) {
+      //socket.send('{connected:'+ pageid + '}');
+      var msg, command, winID, addMsg, rspMsg;
+      socket.onmessage = function(e) {
+        try {
+          msg = JSON.parse(e.data);
+          command = msg.command;  
+          winID = msg.wid;
+          
+          if ( command == "request_params" && self.id == winID) {
+            if (typeof self.RequestParam_callback === "function") {
+              self.RequestParam_callback(msg.parameters);
+            }
+          } else if ( command == "select" ) {
+            self.SelectOnMap(msg); //
+          } 
+        } catch (err) {
+          console.error("Parsing server msg error:", msg, err);            
+        }
+      };
+    };
+    /*
     socket.onopen = function(event) {
       //socket.send('{connected:'+ pageid + '}');
       var msg, command, addMsg, rspMsg;
@@ -308,6 +354,7 @@
         }
       };
     };
+    */
   };
  
   // End and expose d3viz to 'window'

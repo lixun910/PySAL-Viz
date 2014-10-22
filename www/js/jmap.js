@@ -626,7 +626,9 @@
         context.strokeStyle = _self.STROKE_CLR;
        
         _self.selected = ids;
-        _self.triggerLink(ids);
+        if ( nolinking == false) {
+          _self.triggerLink(ids);
+        }
       }
       return context;
     },

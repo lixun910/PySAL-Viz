@@ -14,7 +14,7 @@ from time import sleep
 __author__='Xun Li <xunli@asu.edu>'
 __all__=['clean_ports','setup','getuuid','shp2json','show_map','get_selected', 'select','quantile_map','lisa_map','scatter_plot_matrix']
 
-HTTP_ADDR = "http://127.0.0.1:8000/"
+HTTP_ADDR = "http://127.0.0.1:8000"
 PORTAL = "index.html"
 WS_SERVER = "ws://localhost:9000"
 
@@ -102,9 +102,9 @@ class AnswerMachine(threading.Thread):
             print "[Answering] " + rsp
             try:
                 msg = json.loads(rsp)
-                uuid = msg["uuid"]
                 command = msg["command"]
                 if command == "new_data":
+                    uuid = msg["uuid"]
                     path = msg["path"]
                     ext = path.split(".")[-1]
                     if ext == "shp":
@@ -120,6 +120,16 @@ class AnswerMachine(threading.Thread):
                         
                         self.parent.show_map(shp)
                     
+                elif command == "request_params":
+                    wid = msg["wid"]
+                    params = WIN_DICT[wid]
+                    msg = {
+                        "command":"request_params",
+                        "wid": wid,
+                        "parameters": params
+                    }
+                    self.ws.send(json.dumps(msg))
+                     
                 elif command == "new_quantile_map":
                     uuid = msg["uuid"]
                     var = msg["var"]
@@ -355,10 +365,12 @@ def setup(restart=True):
             subprocess.Popen([script], shell=True)
         
     sleep(1)
-    global PORTAL
-    url = "http://127.0.0.1:8000/%s?%s" % (PORTAL, randomword(10)) 
-    webbrowser.open_new(url)
-    sleep(1)
+    am = AnswerMachine(sys.modules[__name__])
+    am.start()
+    #global PORTAL
+    #url = "http://127.0.0.1:8000/%s?%s" % (PORTAL, randomword(10)) 
+    #webbrowser.open_new(url)
+    #sleep(1)
     
 def getuuid(shp):
     """
@@ -366,10 +378,10 @@ def getuuid(shp):
     """
     return md5.md5(shp.dataPath).hexdigest()
    
-def getmsguuid(shp):
+def getmsguuid():
     """
     """
-    return "m"+md5.md5(shp.dataPath).hexdigest()
+    return "m"+randomword(9)
 
 def json2shp(uuid, json_path):
     global R_SHP_DICT
@@ -431,7 +443,10 @@ def shp2json(shp, rebuild=False, uuid=None):
     else:
         print "The geojson data has been created before. If you want re-create geojson data, please call shp2json(shp, rebuild=True)."
 
-def show_map(shp, rebuild=False, uuid=None):
+def init_map(shp, rebuild=False, uuid=None):
+    shp2json(shp, rebuild=rebuild, uuid=uuid)
+    
+def show_map(shp):
     """
     Ideally, users need to open and process shapefile using:
     >>>> shp = pysal.open(pysal.examples.get_path('columbus.shp'),'r')
@@ -448,13 +463,17 @@ def show_map(shp, rebuild=False, uuid=None):
     
     To create a scatter plot, users need to 
     """
-    shp2json(shp, rebuild=rebuild, uuid=uuid)
-    
-    if uuid == None: 
-        uuid = getuuid(shp)
+    uuid = getuuid(shp)
 
-    request_page = "index.html?wid=%s&json_url=%s&uuid=%s&param=0" % (wid, uuid)
-    url = "%s/%s&%s" (HTTP_ADDR, request_page , randomword(10))
+    if uuid not in R_SHP_DICT: 
+        print "Please run init_map first."
+        return
+    
+    wid = getmsguuid()
+    WIN_DICT[wid] = None
+    
+    request_page = "new_map.html?wid=%s&json_url=%s&uuid=%s&param=0" % (wid, uuid, uuid)
+    url = "%s/%s&%s" % (HTTP_ADDR, request_page , randomword(10))
    
     webbrowser.open_new(url) 
     """
@@ -607,6 +626,25 @@ def quantile_map(shp, var, k, basemap=None, uuid=None):
         else:
             id_array.append([j for j,v in enumerate(y) \
                              if bins[i-1] < v <= upper])
+            
+            
+    wid = getmsguuid()
+    WIN_DICT[wid] = {
+        "uuid":  uuid,
+        "type": "quantile",
+        "title": "Quantile map for variable [%s], k=%d" %(var, len(id_array)),
+        "bins": bins.tolist(),
+        "id_array": id_array,
+    }
+
+    base_page = "thematic_map.html" 
+    if basemap == "leaflet": 
+        base_page = "new_leaflet_map.html"
+    request_page = "%s?wid=%s&json_url=%s&uuid=%s&param=1"%(base_page, wid, uuid, uuid)
+    url = "%s/%s&%s" % (HTTP_ADDR, request_page , randomword(10))
+   
+    webbrowser.open_new(url) 
+    """ 
     global WS_SERVER 
     ws = create_connection(WS_SERVER)
     msg = {
@@ -624,7 +662,7 @@ def quantile_map(shp, var, k, basemap=None, uuid=None):
     ws.send(str_msg)
     #print "send:", str_msg
     ws.close()
-
+    """
     
 def natural_map(shp, var, k, basemap=None, uuid=None):
     if uuid == None:
@@ -651,7 +689,7 @@ def natural_map(shp, var, k, basemap=None, uuid=None):
         "type": "quantile",
         "title": "Natural break map for variable [%s], k=%d" %(var, len(id_array)),
         "bins": bins,
-        "data": id_array,
+        "id_array": id_array,
     }
     if basemap:
         msg["basemap"] = basemap
@@ -661,11 +699,11 @@ def natural_map(shp, var, k, basemap=None, uuid=None):
     #print "send:", str_msg
     ws.close()
     
-def lisa_map(shp, var, local_moran, uuid=None):
+def lisa_map(shp, var, local_moran, basemap=None, uuid=None):
     if uuid == None:
         uuid = getuuid(shp)
     if uuid not in R_SHP_DICT: 
-        print "Please run show_map first."
+        print "Please run init_map first."
         return
     lm = local_moran 
     bins = ["Not Significant","High-High","Low-High","Low-Low","Hight-Low"]
@@ -676,25 +714,27 @@ def lisa_map(shp, var, local_moran, uuid=None):
         id_array.append([i for i,v in enumerate(lm.q) \
                          if v == j and lm.p_sim[i] < 0.05])
     
-    global WS_SERVER 
-    ws = create_connection(WS_SERVER)
-    msg = {
+    wid = getmsguuid()
+    WIN_DICT[wid] = {
         "command": "thematic_map",
-        "type": "lisa_map",
+        "type": "lisa",
         "uuid":  uuid,
         "title": "LISA map for variable [%s], w=%s" %(var, ".gal"),
         "bins": bins,
-        "data": id_array,
+        "id_array": id_array,
     }
-    str_msg = json.dumps(msg)
-    ws.send(str_msg)
-    #print "send:", str_msg
-    ws.close()
+    base_page = "thematic_map.html" 
+    if basemap == "leaflet": 
+        base_page = "new_leaflet_map.html"
+    request_page = "%s?wid=%s&json_url=%s&uuid=%s&param=1"%(base_page, wid, uuid, uuid)
+    url = "%s/%s&%s" % (HTTP_ADDR, request_page , randomword(10))
+   
+    webbrowser.open_new(url) 
     
 def moran_scatter_plot(shp, dbf, var, w):
     uuid = getuuid(shp)
     if uuid not in R_SHP_DICT: 
-        print "Please run show_map first."
+        print "Please run init_map first."
         return
     y = np.array(dbf.by_col[var])
     y_lag = pysal.lag_spatial(w, y)
@@ -702,26 +742,36 @@ def moran_scatter_plot(shp, dbf, var, w):
     y_z = (y - y.mean()) / y.std()
     y_lag_z = (y_lag - y_lag.mean()) / y_lag.std()
     
-    global WS_SERVER 
-    ws = create_connection(WS_SERVER)
-    msg = {
-        "command": "moran_scatter_plot",
+    wid = getmsguuid()
+    WIN_DICT[wid] = {
         "uuid":  uuid,
         "title": "Moran Scatter plot for variable [%s]" % var,
         "data": { "x": y_z.tolist(), "y" : y_lag_z.tolist() },
-        "fields": [var, "lagged %s" % var]
+        "fieldx": var,
+        "fieldy": "lagged %s" % var
     }
-    str_msg = json.dumps(msg)
-    ws.send(str_msg)
-    #print "send:", str_msg
-    ws.close()
+    request_page = "new_moran_scatter_plot.html?wid=%s&json_url=%s&uuid=%s" % \
+        (wid, uuid, uuid)
+    url = "%s/%s&%s" % (HTTP_ADDR, request_page , randomword(10))
+   
+    webbrowser.open_new(url) 
     
-def scatter_plot(shp, fields):
+def scatter_plot(shp, field_x=None, field_y=None):
     uuid = getuuid(shp)
     if uuid not in R_SHP_DICT: 
-        print "Please run show_map first."
+        print "Please run init_map first."
         return
+    dbf = R_SHP_DICT[uuid]["dbf"] 
     
+    wid = getmsguuid()
+    WIN_DICT[wid] = None
+    
+    request_page = "new_scatter_plot.html?wid=%s&json_url=%s&uuid=%s&fieldx=%s&fieldy=%s" % \
+        (wid, uuid, uuid, field_x, field_y)
+    url = "%s/%s&%s" % (HTTP_ADDR, request_page , randomword(10))
+   
+    webbrowser.open_new(url) 
+    """
     global WS_SERVER 
     ws = create_connection(WS_SERVER)
     msg = {
@@ -734,6 +784,7 @@ def scatter_plot(shp, fields):
     ws.send(str_msg)
     #print "send:", str_msg
     ws.close()
+    """
     
 def scatter_plot_matrix(shp, fields):
     uuid = getuuid(shp)

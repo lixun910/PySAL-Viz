@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>GeoDa.app</title>
+<style>
+.info {
+			padding: 6px 8px;
+			font: 14px/16px Arial, Helvetica, sans-serif;
+			background: white;
+			background: rgba(255,255,255,0.8);
+			box-shadow: 0 0 15px rgba(0,0,0,0.2);
+			border-radius: 5px;
+		}
+</style>
+<link rel="stylesheet" href="css/d3viz.css" />
+<link rel="stylesheet" href="css/leaflet.css" />
+
+<script src="js/leaflet.js"></script>
+<script src="js/jquery.min.js"></script>
+<script src="js/d3.v3.min.js"></script>
+<script src="js/colorbrewer.js"></script>
+<script src="js/jmap.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/d3viz.js"></script>
+<script>
+
+var viz, lmap, map, uuid; 
+
+$(document).ready(function() {
+  var winID = getParameterByName("wid"),
+      json_url = getParameterByName("uuid"),
+      uuid = getParameterByName("uuid"),
+      param = getParameterByName("param");
+      
+  lmap = L.map('map');
+  
+  L.tileLayer('https://{s}.tiles.mapbox.com/v3/{id}/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, ' + 
+    '<a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
+    'Imagery © <a href="http://mapbox.com">Mapbox</a>',
+    id: 'examples.map-20v6611k'
+  }).addTo(lmap);
+
+  localStorage.clear();
+  
+  var foreground = $('#foreground').attr("id", uuid); 
+  
+  viz = new d3viz(winID, $('#map-container'), foreground);
+   
+  viz.SetupWebSocket();
+  viz.SetupBrushLink();
+  
+  viz.RequestParameters(winID, function(params) {
+  
+    var type = params["type"];
+    var bins = params["bins"];
+    var id_array = params["id_array"];
+    var title = params["title"];
+    var k = id_array.length;
+    var colors = colorbrewer.YlGn[k];
+    
+    if (type == "lisa") {
+      colors = colorbrewer.Lisa[k];
+    }
+    
+    var colorTheme = {};
+    for ( var i=0, n=id_array.length; i<n; i++ ) {
+      colorTheme[colors[i]] = id_array[i];
+    }
+ 
+    viz.ShowLeafletMap(uuid, L, lmap, {
+      "color_theme": colorTheme, 
+      "hratio": 1,
+      "vratio": 1,
+      "alpha": 0.9,
+    }, function() {
+      $('#loading').remove();
+  
+      map = viz.map;
+      lmap.on('zoomstart', function() {
+        map.clean();
+      });
+      lmap.on('zoomend', function() {
+        map.update();
+      });
+      lmap.on('movestart', function(e) {
+        map.clean();
+      });
+      lmap.on('moveend', function(e) {
+        var op = e.target.getPixelOrigin();
+        var np = e.target._getTopLeftPoint();
+        var offsetX = -np.x + op.x;
+        var offsetY = -np.y + op.y;
+        map.update({"offsetX":offsetX, "offsetY":offsetY});
+      });
+    
+      var selector = L.control({position: 'bottomleft'});
+      selector.onAdd = function (map) {
+        var div = L.DomUtil.create('div', 'info');
+        var legend = L.DomUtil.create('div', 'legend');
+	var sel = L.DomUtil.create('select', 'color-selector');
+	var info = L.DomUtil.create('h4', '');
+
+	create_legend($(legend), bins, colors); 
+	
+        // fill content of color-selector
+        $.each(colorbrewer, function(k,v){
+          $(sel)
+            .append($("<option></option>")
+              .attr("value", k)
+              .text(k));
+        });
+       
+	$(div).append($(legend)); 
+	$(div).append($(info)); 
+	$(div).append("Select to change color scheme:"); 
+	$(div).append($(sel)); 
+        return div;
+      };
+      selector.addTo(lmap);
+      
+      
+      $('.color-selector').change(function(){
+        var clr_name = $('.color-selector option:selected').text();
+        colors = colorbrewer[clr_name][k];
+        var colorTheme = {};
+        for ( var i=0, n=id_array.length; i<n; i++ ) {
+          colorTheme[colors[i]] = id_array[i];
+        }
+        map.updateColor(colorTheme);
+        $('.legend').empty();
+        create_legend($('.legend'), bins, colors); 
+      });
+      
+      // fill content of legend
+      
+      var info = L.control();
+      info.onAdd = function (map) {
+	      this._div = L.DomUtil.create('div', 'info');
+	      this.update();
+	      return this._div;
+      };
+      info.update = function (props) {
+	      this._div.innerHTML = '<h4>'+title+'</h4>';
+      };
+      info.addTo(lmap);
+      
+      if (type == "lisa") {
+        $('#selector').empty();
+      }
+    });
+    
+  });
+});
+</script>
+<body>
+<div id="map-container" style="position: relative; align:center; border: 0px solid red;height: 100%;position: relative;">
+  <div id="map" style="align:center; margin-top:0px;border: 0px solid red;width: 100%;height:100%;">
+  </div>
+  <canvas id="foreground" style="position: absolute; top: 0; left: 0;width: 100%; height: 100%"></canvas>
+</div>
+
+
+<div id="loading">
+     loading....
+</div>
+
+</body>
+</html>

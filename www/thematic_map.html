@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>GeoDa.app</title>
+<link rel="stylesheet" href="css/d3viz.css" />
+<script src="js/jquery.min.js"></script>
+<script src="js/d3.v3.min.js"></script>
+<script src="js/colorbrewer.js"></script>
+<script src="js/jmap.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/d3viz.js"></script>
+<script>
+
+var viz, uuid;
+
+
+$(document).ready(function() {
+ 
+  var winID = getParameterByName("wid"),
+      json_url = getParameterByName("uuid"),
+      uuid = getParameterByName("uuid"),
+      param = getParameterByName("param");
+      
+  // Local Storage Brushing/Linking
+  localStorage.clear();
+      
+  viz = new d3viz(winID, $('#map-container'));
+  viz.SetupWebSocket();
+  viz.SetupBrushLink();
+  
+  viz.RequestParameters(winID, function(params) {
+    
+    var type = params["type"];
+    var bins = params["bins"];
+    var id_array = params["id_array"];
+    var title = params["title"];
+    var k = id_array.length;
+    var colors = colorbrewer.YlGn[k];
+    
+    if (type == "lisa") {
+      colors = colorbrewer.Lisa[k];
+    }
+    
+    var colorTheme = {};
+    for ( var i=0, n=id_array.length; i<n; i++ ) {
+      colorTheme[colors[i]] = id_array[i];
+    }
+   
+    viz.ShowThematicMap(uuid, colorTheme, function() { 
+      $('#loading').remove();
+    });
+    
+    // fill content of color-selector
+    $.each(colorbrewer, function(k,v){
+      $('#color-selector')
+        .append($("<option></option>")
+          .attr("value", k)
+          .text(k));
+    });
+    
+    // when color scheme changed
+    $('#color-selector').change(function(){
+      var clr_name = $('#color-selector option:selected').text();
+      colors = colorbrewer[clr_name][k];
+      var colorTheme = {};
+      for ( var i=0, n=id_array.length; i<n; i++ ) {
+        colorTheme[colors[i]] = id_array[i];
+      }
+      viz.UpdateThematicMap(uuid, colorTheme, function(){
+        $('#legend').empty();
+        create_legend($('#legend'), bins, colors);
+      });
+    });
+    
+    // fill content of legend
+    create_legend($('#legend'), bins, colors); 
+    
+    // update title
+    $('#title').empty().text(title);
+   
+    // update LISA case 
+    if (type == "lisa") {
+      $('#selector').empty();
+    }
+  });
+});
+</script>
+<body>
+<div id="loading">
+     loading....
+</div>
+<div id="map-container" style="align:center; border: 0px solid red;height: 90%;width:100%;">
+  <div id="title" style="margin:10px;">Title</div>
+</div>
+<div id="selector" style="margin:10px; float: right;">
+  Select to change color scheme: <select id="color-selector"></select>
+</div>
+<div id="legend" style="margin-top:-60px;"></div>
+</body>
+</html>

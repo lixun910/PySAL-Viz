@@ -5,12 +5,24 @@ def test_d3viz():
 
     import d3viz
     d3viz.setup()
+    d3viz.init_map(shp)
+   
+    d3viz.scatter_plot(shp, field_x="HR90", field_y="HC90") 
+    w = pysal.queen_from_shapefile(pysal.examples.get_path('NAT.shp'))
+    d3viz.moran_scatter_plot(shp, dbf, "HR90", w)
     d3viz.show_map(shp)
     
-    select_ids = [i for i,v in enumerate(dbf.by_col["HC60"]) if v <= 0.001]
-    d3viz.select(shp, ids=select_ids)    
-
     d3viz.quantile_map(shp, "HR90", 5)
+    d3viz.quantile_map(shp, "HR90", 5, basemap="leaflet")
+   
+    import numpy as np
+    y = np.array(dbf.by_col["HR90"])
+    lm = pysal.Moran_Local(y, w)
+    
+    d3viz.lisa_map(shp, "HR90", lm)
+    #select_ids = [i for i,v in enumerate(dbf.by_col["HC60"]) if v <= 0.001]
+    #d3viz.select(shp, ids=select_ids)    
+
     
 def test_cartodb():
     import pysal
