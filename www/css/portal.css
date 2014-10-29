@@ -60,6 +60,7 @@ border: 1px solid #aaa;margin: 1px 10px;
 }
 
 #drop_zone {
+  z-index: 99999;
   border: 2px dashed #bbb;
   border-radius: 5px;
   padding: 25px;

@@ -788,7 +788,15 @@ $(document).ready(function() {
   //  Drag & Drop
   //////////////////////////////////////////////////////////////
   var reader;
+  var dropZone = document.getElementById('drop_zone');
   var progress = document.querySelector('.percent');
+  
+  if (typeof window.FileReader === 'undefined') {
+    progress.textContent = 'File API not available.';
+  } else {
+    progress.textContent = 'File API & FileReader available';
+  }
+
   function updateProgress(evt) {
     // evt is an ProgressEvent.
     if (evt.lengthComputable) {
@@ -800,15 +808,28 @@ $(document).ready(function() {
       }
     }
   }
-  function handleFileSelect(evt) {
+  
+  dropZone.ondragover = function(evt) {
+    //evt.stopPropagation();
+    //evt.preventDefault();
+    //evt.dataTransfer.dropEffect = 'copy'; // Explicitly show this is a copy.
+    $("#"+evt.target.id).css("color", "black");
+    return false;
+  };
+
+  dropZone.ondragend = function(evt) {
     $("#"+evt.target.id).css("color", "#bbb");
-    evt.stopPropagation();
+    return false;
+  };
+  
+  dropZone.ondrop = function(evt) {
+    //evt.stopPropagation();
     evt.preventDefault();
   
+    $("#"+evt.target.id).css("color", "#bbb");
     // Reset progress indicator on new file selection.
     progress.style.width = '0%';
     progress.textContent = '0%';
-  
     var formData = new FormData(),
         files = evt.dataTransfer.files, // FileList object.
         bJson = 0, bShp = [0, 0, 0],
@@ -874,23 +895,12 @@ $(document).ready(function() {
     xhr.upload.onprogress = updateProgress;
     xhr.send(formData);
     document.getElementById('progress_bar').className = 'loading';
-  }
-  function handleDragOver(evt) {
-    evt.stopPropagation();
-    evt.preventDefault();
-    evt.dataTransfer.dropEffect = 'copy'; // Explicitly show this is a copy.
-    $("#"+evt.target.id).css("color", "black");
-  }
-
-  function handleDragOut(evt) {
-    $("#"+evt.target.id).css("color", "#bbb");
-  }
-
+  };
   // Setup the dnd listeners.
-  var dropZone = document.getElementById('drop_zone');
-  dropZone.addEventListener('dragover', handleDragOver, false);
-  dropZone.addEventListener('dragleave', handleDragOut, false);
-  dropZone.addEventListener('drop', handleFileSelect, false);
+  //var dropZone = document.getElementById('drop_zone');
+  //dropZone.addEventListener('dragover', handleDragOver, false);
+  //dropZone.addEventListener('dragleave', handleDragOut, false);
+  //dropZone.addEventListener('drop', handleFileSelect, false);
 
 });
 

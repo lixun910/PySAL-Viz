@@ -50,9 +50,12 @@ if 'userfile' in form.keys():
          geojson = open(json_path, "w")
          geojson.write(json.dumps({"type": "FeatureCollection","features": buffer}, ensure_ascii=False))
          geojson.close()
-      
-      message = '{"uuid":"%s","path":"%s"}' % (uuid, shp_path)
-         
+   
+      message = {} 
+      message["uuid"]  = uuid
+      message["path"] = shp_path
+      message = json.dumps(message)  
+        
    elif json_path:
       # convert json to shape file
       pass
