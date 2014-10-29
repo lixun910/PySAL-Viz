@@ -28,6 +28,32 @@ body {
   margin: 0;
   padding: 0;
 }
+.switch-button-label { float: left;font-size: 10pt;cursor: pointer;}
+.switch-button-label.off { color: #adadad;}
+.switch-button-label.on {color: #0088CC;}
+.switch-button-background {float: left;position: relative; background: #ccc;
+border: 1px solid #aaa;margin: 1px 10px;
+  -webkit-border-radius: 4px;
+  -moz-border-radius: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.switch-button-button {
+    position: absolute;
+    left: -1px;
+    top : -1px;
+    background: #FAFAFA;
+    border: 1px solid #aaa;
+    -webkit-border-radius: 4px;
+    -moz-border-radius: 4px;
+    border-radius: 4px;
+}
+.switch-wrapper {
+  display: inline-block;
+  position: relative;
+  top: 3px;
+  float: right;
+}
 #dragdrop_div {
   width: 60%;
   padding: 10px;
@@ -138,6 +164,9 @@ body {
 }
 #map {
   align:center; margin-top:0px;border: 0px solid red;width: 100%;height:100%;
+}
+#foreground {
+  position: absolute; top: 0; left: 0;width: 100%; height: 100%;
 }
 /*Weights Creation*/
 .ui-widget-overlay { background: #aaa repeat-x; opacity: .8;}
