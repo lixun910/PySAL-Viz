@@ -105,6 +105,9 @@
     var json_url = this.GetJsonUrl(uuid);
     this.canvas = $('<canvas id="' + uuid + '"></canvas>').appendTo(this.container);
     this.GetJSON( json_url, function(data) {
+      if ( typeof data == "string") {
+        data = JSON.parse(data);
+      }
       self.map = new GeoVizMap(new JsonMap(data), self.canvas);
       self.mapDict[uuid] = self.map;
       self.dataDict[uuid] = data;
@@ -125,6 +128,9 @@
           json_path = this.RandUrl("./tmp/" + uuid + ".json");
       
       this.GetJSON( json_path, function(data) {
+        if ( typeof data == "string") {
+          data = JSON.parse(data);
+        }
         self.map.addLayer(uuid, new JsonMap(data)); 
         //self.mapDict[uuid] = self.map;
         self.dataDict[uuid] = data;
@@ -139,6 +145,9 @@
     var json_url = this.GetJsonUrl(uuid);
     this.canvas = $('<canvas id="' + uuid + '"></canvas>').appendTo(this.container);
     this.GetJSON( json_url, function(data) {
+      if ( typeof data == "string") {
+        data = JSON.parse(data);
+      }
       self.map = new GeoVizMap(new JsonMap(data), self.canvas, {
         "color_theme" : colorTheme
       });
@@ -166,6 +175,9 @@
     //already have canvas as foreground
     //this.canvas = $('<canvas id="' + uuid + '"></canvas>').appendTo(this.container);
     this.GetJSON( json_url, function(data) {
+      if ( typeof data == "string") {
+        data = JSON.parse(data);
+      }
       self.map = new GeoVizMap(new LeafletMap(data, L, lmap), self.canvas, options);
       self.mapDict[uuid] = self.map;
       self.dataDict[uuid] = data;

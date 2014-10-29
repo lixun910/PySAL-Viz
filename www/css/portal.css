@@ -60,13 +60,15 @@ border: 1px solid #aaa;margin: 1px 10px;
 }
 
 #drop_zone {
-  z-index: 99999;
+  position: fixed;
+  z-index: 9999;
   border: 2px dashed #bbb;
   border-radius: 5px;
   padding: 25px;
   text-align: center;
   font: 20pt bold 'Vollkorn';
   color: #bbb;
+  width: 370px;
 }
 
 #dropbox_div {

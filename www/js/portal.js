@@ -135,8 +135,8 @@ $(document).ready(function() {
   $( "#dialog-open-file" ).dialog({
     height: 380,
     width: 480,
-    autoOpen: false,
-    modal: true,
+    autoOpen: true,
+    modal: false,
     dialogClass: "dialogWithDropShadow",
     buttons: [
       {
@@ -153,7 +153,7 @@ $(document).ready(function() {
       }
     ]
   });
-  $('#dialog-open-file').dialog('open');
+  //$('#dialog-open-file').dialog('open');
   //////////////////////////////////////////////////////////////
   //  Weights creation
   //////////////////////////////////////////////////////////////
@@ -896,12 +896,6 @@ $(document).ready(function() {
     xhr.send(formData);
     document.getElementById('progress_bar').className = 'loading';
   };
-  // Setup the dnd listeners.
-  //var dropZone = document.getElementById('drop_zone');
-  //dropZone.addEventListener('dragover', handleDragOver, false);
-  //dropZone.addEventListener('dragleave', handleDragOut, false);
-  //dropZone.addEventListener('drop', handleFileSelect, false);
-
 });
 
 
