@@ -34,6 +34,7 @@ body {
 }
 
 #drop_zone {
+  z-index: 99999;
   border: 2px dashed #bbb;
   border-radius: 5px;
   padding: 25px;
