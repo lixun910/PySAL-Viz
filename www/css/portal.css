@@ -127,6 +127,7 @@ border: 1px solid #aaa;margin: 1px 10px;
 #btnAddLayer {background-image: url(../img/addLayer.png);}
 #btnCartoDB {background-image: url(../img/cartodb.png);}
 #btnRoadNetwork {background-image: url(../img/network.png);}
+#btnSpaceTime {background-image: url(../img/st.png);}
 #btnSave {background-image: url(../img/save.png);}
 #btnShowTable {background-image: url(../img/table.png);}
 #btnCreateW {background-image: url(../img/newW.png);}

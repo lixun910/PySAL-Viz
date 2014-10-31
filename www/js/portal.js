@@ -138,6 +138,9 @@ $(document).ready(function() {
     $('#dialog-open-file').dialog('option','title','Add Layer Dialog');
     $('#dialog-open-file').dialog('open');
   });
+  $('#btnCartoDB').click(function(){$('#dialog-cartodb').dialog('open');});
+  $('#btnRoadNetwork').click(function(){$('#dialog-road').dialog('open');});
+  $('#btnSpaceTime').click(function(){$('#dialog-spacetime').dialog('open');});
   $('#btnCreateW').click(function(){$('#dialog-weights').dialog('open');});
   $('#btnSpreg').click(function(){$('#dialog-regression').dialog('open');});
   $('#btnNewMap').click(function(){$('#dlg-quantile-map').dialog('open');});
@@ -333,6 +336,97 @@ $(document).ready(function() {
     document.getElementById('progress_bar').className = 'loading';
   };
  
+  //////////////////////////////////////////////////////////////
+  //  CartoDB
+  //////////////////////////////////////////////////////////////
+  $('#tabs-dlg-cartodb').tabs();
+  $( "#dialog-cartodb" ).dialog({
+    height: 380,
+    width: 480,
+    autoOpen: false,
+    modal: false,
+    dialogClass: "dialogWithDropShadow",
+    buttons: [
+      {
+        text: "OK",
+        click: function() {
+          var sel_id = $("#tabs-dlg-cartodb").tabs('option','active');
+          if (sel_id == 1) {
+            // cartodb: download map from cartodb
+          }
+          $( this ).dialog( "close" );
+        },
+      },
+      {
+        text: "Close",
+        click: function() {
+          $( this ).dialog( "close" );
+        },
+      }
+    ]
+  });
+  
+  //////////////////////////////////////////////////////////////
+  //  Road
+  //////////////////////////////////////////////////////////////
+  $('#tabs-dlg-road').tabs();
+  $( "#dialog-road" ).dialog({
+    height: 380,
+    width: 480,
+    autoOpen: false,
+    modal: false,
+    dialogClass: "dialogWithDropShadow",
+    buttons: [
+      {
+        text: "OK",
+        click: function() {
+          var sel_id = $("#tabs-dlg-road").tabs('option','active');
+          if (sel_id == 1) {
+            // cartodb: download map from cartodb
+          }
+          $( this ).dialog( "close" );
+        },
+      },
+      {
+        text: "Close",
+        click: function() {
+          $( this ).dialog( "close" );
+        },
+      }
+    ]
+  });
+  
+  //////////////////////////////////////////////////////////////
+  //  Space Time
+  //////////////////////////////////////////////////////////////
+  $('#datepicker-start').datepicker();
+  $('#datepicker-end').datepicker();
+  $('#tabs-dlg-spacetime').tabs();
+  $( "#dialog-spacetime" ).dialog({
+    height: 580,
+    width: 480,
+    autoOpen: false,
+    modal: false,
+    dialogClass: "dialogWithDropShadow",
+    buttons: [
+      {
+        text: "OK",
+        click: function() {
+          var sel_id = $("#tabs-dlg-spacetime").tabs('option','active');
+          if (sel_id == 1) {
+            // cartodb: download map from cartodb
+          }
+          $( this ).dialog( "close" );
+        },
+      },
+      {
+        text: "Close",
+        click: function() {
+          $( this ).dialog( "close" );
+        },
+      }
+    ]
+  });
   //////////////////////////////////////////////////////////////
   //  Weights creation
   //////////////////////////////////////////////////////////////
