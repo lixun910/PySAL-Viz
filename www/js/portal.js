@@ -8,7 +8,11 @@ function ShowMsgBox(title, content) {
   $('#dlg-msg').dialog('open');
 }
 
-var viz, foreground, lmap, map, uuid, winID;
+var viz, foreground, lmap, map, uuid, winID, 
+    prj,
+    gHasProj     =false, 
+    gShowLeaflet =false, 
+    gAddLayer    =false;
 
 $(document).ready(function() {
   //////////////////////////////////////////////////////////////
@@ -18,7 +22,6 @@ $(document).ready(function() {
   
   // create Leaflet map 
   lmap = L.map('map');
-  
   L.tileLayer('https://{s}.tiles.mapbox.com/v3/{id}/{z}/{x}/{y}.png', {
     maxZoom: 18,
     attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, ' + 
@@ -38,23 +41,28 @@ $(document).ready(function() {
     $('#dialog-open-file').dialog('close');
     
     InitDialogs();
-    map = viz.map;
-    lmap.on('zoomstart', function() {
-      map.clean();
-    });
-    lmap.on('zoomend', function() {
-      map.update();
-    });
-    lmap.on('movestart', function(e) {
-      map.clean();
-    });
-    lmap.on('moveend', function(e) {
-      var op = e.target.getPixelOrigin();
-      var np = e.target._getTopLeftPoint();
-      var offsetX = -np.x + op.x;
-      var offsetY = -np.y + op.y;
-      map.update({"offsetX":offsetX, "offsetY":offsetY});
-    });
+    
+    if (gShowLeaflet == true) {
+      map = viz.map;
+      lmap.on('zoomstart', function() {
+        map.clean();
+      });
+      lmap.on('zoomend', function() {
+        map.update();
+      });
+      lmap.on('movestart', function(e) {
+        map.clean();
+      });
+      lmap.on('moveend', function(e) {
+        var op = e.target.getPixelOrigin();
+        var np = e.target._getTopLeftPoint();
+        var offsetX = -np.x + op.x;
+        var offsetY = -np.y + op.y;
+        map.update({"offsetX":offsetX, "offsetY":offsetY});
+      });
+    } else {
+      $('#map').hide();
+    }
   };
   
   var InitDialogs = function(){
@@ -66,7 +74,6 @@ $(document).ready(function() {
         field_names.push(field);
       }
       field_names.sort();
-      
       var var_combobox= ['#sel-var', '#sel-w-id', '#sel-scatter-x', '#sel-scatter-y', '#sel-moran-var','#sel-lisa-var'];
       $.each( var_combobox, function(i, var_cmb ) {
         $(var_cmb).find('option').remove().end();
@@ -121,7 +128,16 @@ $(document).ready(function() {
   });
   $('#dlg-msg').hide();
   $('.dlg-loading').hide();
-  $('#btnOpenData').click(function(){$('#dialog-open-file').dialog('open');});
+  $('#btnOpenData').click(function(){
+    gAddLayer = false;
+    $('#dialog-open-file').dialog('option','title','Open Map Dialog');
+    $('#dialog-open-file').dialog('open');
+  });
+  $('#btnAddLayer').click(function(){
+    gAddLayer = true;
+    $('#dialog-open-file').dialog('option','title','Add Layer Dialog');
+    $('#dialog-open-file').dialog('open');
+  });
   $('#btnCreateW').click(function(){$('#dialog-weights').dialog('open');});
   $('#btnSpreg').click(function(){$('#dialog-regression').dialog('open');});
   $('#btnNewMap').click(function(){$('#dlg-quantile-map').dialog('open');});
@@ -142,6 +158,10 @@ $(document).ready(function() {
       {
         text: "OK",
         click: function() {
+          var sel_id = $("#tabs-dlg-open-file").tabs('option','active');
+          if (sel_id == 1) {
+            // cartodb: download map from cartodb
+          }
           $( this ).dialog( "close" );
         },
       },
@@ -154,6 +174,165 @@ $(document).ready(function() {
     ]
   });
   //$('#dialog-open-file').dialog('open');
+  // switch leaflet
+  var showLeafletMap = function(uuid) {
+    if (uuid && viz) {
+      gShowLeaflet = true;
+      if ( gHasProj && prj == undefined) {
+        // wait for reading *.prj file 
+        setTimeout(function(){showLeafletMap(uuid);}, 10);  
+      } else {
+        $('#map').show();
+        viz.ShowLeafletMap(uuid, L, lmap, prj, {
+          "hratio": 1, "vratio": 1, "alpha": 0.8,
+        }, OnMapShown);
+      }
+    }
+  };
+  var showPlainMap = function(uuid) {
+    if (uuid && viz) {
+      gShowLeaflet = false;
+      viz.ShowMap(uuid,OnMapShown); 
+    }
+  };
+  
+  $("#switch").switchButton({
+    checked: false,
+    on_label: 'ON',
+    off_label: 'Leaflet Background? OFF',
+    on_callback: function() {
+      gShowLeaflet = true;
+      showLeafletMap(uuid);
+    },
+    off_callback: function() {
+      gShowLeaflet = false;
+      showPlainMap(uuid);
+    },
+  });
+   //////////////////////////////////////////////////////////////
+  //  Drag & Drop
+  //////////////////////////////////////////////////////////////
+  var reader;
+  var dropZone = document.getElementById('drop_zone');
+  var progress = document.querySelector('.percent');
+  if (typeof window.FileReader === 'undefined') {
+    console.log( 'File API not available.');
+  }
+  function updateProgress(evt) {
+    // evt is an ProgressEvent.
+    if (evt.lengthComputable) {
+      var percentLoaded = Math.round((evt.loaded / evt.total) * 100);
+      // Increase the progress bar length.
+      if (percentLoaded < 100) {
+        progress.style.width = percentLoaded + '%';
+        progress.textContent = percentLoaded + '%';
+      }
+    }
+  }
+  dropZone.ondragover = function(evt) {
+    $("#"+evt.target.id).css("color", "black");
+    return false;
+  };
+  dropZone.ondragend = function(evt) {
+    $("#"+evt.target.id).css("color", "#bbb");
+    return false;
+  };
+  dropZone.ondrop = function(evt) {
+    evt.preventDefault();
+    $("#"+evt.target.id).css("color", "#bbb");
+    // Reset progress indicator on new file selection.
+    progress.style.width = '0%';
+    progress.textContent = '0%';
+    reader = new FileReader();
+    reader.onload = function(e) {
+      console.log(reader.result);
+      // read *.prj file
+      var ip = reader.result;
+      prj = proj4(ip, proj4.defs('WGS84'));
+    };
+    var formData = new FormData(),
+        files = evt.dataTransfer.files, // FileList object.
+        bJson = 0, bShp = 0, bDbf =0, bShx =0,
+        shpFileName = "", shpFile;
+    gHasProj = false,
+    $.each(files, function(i, f) {
+      var name = f.name,
+          suffix = getSuffix(name);
+      if (suffix === 'geojson' || suffix === 'json') {
+        bJson = 1;
+        shpFileName = name;
+        shpFile = f;
+      } else if (suffix === "shp") {
+        bShp = 1;
+        shpFileName = name;
+        shpFile = f;
+      } else if (suffix === "shx") {
+        bShx = 1;
+      } else if (suffix === "dbf") {
+        bDbf = 1;
+      } else if (suffix === "prj") {
+        gHasProj = true;
+        reader.readAsText(f);
+      }
+    });
+    // check files
+    if (!bJson && !bShp && !bShx && !bDbf ) {
+      ShowMsgBox("Error", "Please drag&drop either one json/geojson file, or ESRI Shapefiles (*.shp, *.dbf, *.shx and *.prj) ");
+      return false;
+    } else if (!bJson && (!bShp || !bShx || !bDbf )) {
+      ShowMsgBox("Error", "Please drag&drop three files (*.shp, *.dbf, *.shx and *.prj)  at the same time. (Tips: use ctrl (windows) or command (mac) to select multiple files.)");
+      return false;
+    } 
+    if (!bJson && !gHasProj ) {
+      ShowMsgBox("Info", "The *.prj file is not found. The map will not be shown using Leaflet."); 
+    }
+    $.each(files, function(i, f) {
+      if ($.inArray(getSuffix(f.name), ['json','geojson','shp','shx','dbf', 'prj'] ) >=0) {
+        formData.append('userfile', f, f.name);
+      }
+    });
+    // upload files to server
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', './cgi-bin/upload.py');
+    xhr.onload = function() {
+      console.log("[Upload]", this.responseText);
+      try{
+        var data = JSON.parse(this.responseText);
+        if ( data['uuid'] != undefined) {
+          var path = data["path"];
+          if ( gAddLayer == false ) { // open new map
+            uuid = data["uuid"];
+            foreground = $('#foreground').attr("id", uuid); 
+            viz.canvas = foreground;
+            if ( gHasProj || gShowLeaflet == true) {
+              showLeafletMap(uuid);
+            } else {
+              showPlainMap(uuid);
+            }
+          } else { // add new layer
+            var subUuid = data["uuid"];
+            if ( gHasProj || gShowLeaflet == true) {
+              viz.AddLeafletMap(subUuid, L, lmap, prj);
+            } else {
+              viz.AddPlainMap(subUuid);
+            }
+          }
+          var msg =  {"command":"new_data", "uuid": data['uuid'],"path":path};
+          viz.NewDataFromWeb(msg);
+        }
+      } catch(e){
+        console.log("[Error][Upload Files]", e);
+      }
+      // Ensure that the progress bar displays 100% at the end.
+      progress.style.width = '100%';
+      progress.textContent = '100%';
+      setTimeout("document.getElementById('progress_bar').className='';", 2000);
+    }; 
+    xhr.upload.onprogress = updateProgress;
+    xhr.send(formData);
+    document.getElementById('progress_bar').className = 'loading';
+  };
+ 
   //////////////////////////////////////////////////////////////
   //  Weights creation
   //////////////////////////////////////////////////////////////
@@ -182,7 +361,7 @@ $(document).ready(function() {
   
   $( "#dialog-weights" ).dialog({
     height: 380, width: 480,
-    autoOpen: false, modal: true,
+    autoOpen: false, modal: false,
     dialogClass: "dialogWithDropShadow",
     buttons: [
       {
@@ -784,118 +963,6 @@ $(document).ready(function() {
   });
     
    
-  //////////////////////////////////////////////////////////////
-  //  Drag & Drop
-  //////////////////////////////////////////////////////////////
-  var reader;
-  var dropZone = document.getElementById('drop_zone');
-  var progress = document.querySelector('.percent');
-  
-  if (typeof window.FileReader === 'undefined') {
-    progress.textContent = 'File API not available.';
-  } else {
-    progress.textContent = 'File API & FileReader available';
-  }
-
-  function updateProgress(evt) {
-    // evt is an ProgressEvent.
-    if (evt.lengthComputable) {
-      var percentLoaded = Math.round((evt.loaded / evt.total) * 100);
-      // Increase the progress bar length.
-      if (percentLoaded < 100) {
-        progress.style.width = percentLoaded + '%';
-        progress.textContent = percentLoaded + '%';
-      }
-    }
-  }
-  
-  dropZone.ondragover = function(evt) {
-    //evt.stopPropagation();
-    //evt.preventDefault();
-    //evt.dataTransfer.dropEffect = 'copy'; // Explicitly show this is a copy.
-    $("#"+evt.target.id).css("color", "black");
-    return false;
-  };
-
-  dropZone.ondragend = function(evt) {
-    $("#"+evt.target.id).css("color", "#bbb");
-    return false;
-  };
-  
-  dropZone.ondrop = function(evt) {
-    //evt.stopPropagation();
-    evt.preventDefault();
-  
-    $("#"+evt.target.id).css("color", "#bbb");
-    // Reset progress indicator on new file selection.
-    progress.style.width = '0%';
-    progress.textContent = '0%';
-    var formData = new FormData(),
-        files = evt.dataTransfer.files, // FileList object.
-        bJson = 0, bShp = [0, 0, 0],
-        shpFileName = "", shpFile;
-    $.each(files, function(i, f) {
-      var name = f.name,
-          suffix = getSuffix(name);
-      if (suffix === 'geojson' || suffix === 'json') {
-        bJson = 1;
-        shpFileName = name;
-        shpFile = f;
-      } else if (suffix === "shp") {
-        bShp[0] = 1;
-        shpFileName = name;
-        shpFile = f;
-      } else if (suffix === "shx") {
-        bShp[1] = 1;
-      } else if (suffix === "dbf") {
-        bShp[2] = 1;
-      }
-    });
-    // check files
-    if (!bJson && !bShp[0] && !bShp[1] && !bShp[2]) {
-      ShowMsgBox("Error", "Please drag&drop either one json/geojson file, or three files (*.shp, *.dbf and *.shx) ")
-      return false;
-    } else if (!bJson && (!bShp[0] || !bShp[1] || !bShp[2])) {
-      ShowMsgBox("Error", "Please drag&drop three files (*.shp, *.dbf and *.shx)  at the same time. (Tips: use ctrl (windows) or command (mac) to select multiple files.)")
-      return false;
-    } 
-    $.each(files, function(i, f) {
-      if ($.inArray(getSuffix(f.name), ['json','geojson','shp','shx','dbf'] ) >=0) {
-        formData.append('userfile', f, f.name);
-      }
-    });
-    // upload files to server
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', './cgi-bin/upload.py');
-    xhr.onload = function() {
-      console.log("[Upload]", this.responseText);
-      try{
-        var data = JSON.parse(this.responseText);
-        if ( data['uuid'] != undefined) {
-          var path = data["path"];
-          uuid = data["uuid"];
-          foreground = $('#foreground').attr("id", uuid); 
-          viz.canvas = foreground;
-          viz.ShowLeafletMap(uuid, L, lmap, {
-            "hratio": 1,
-            "vratio": 1,
-            "alpha": 0.8,
-          }, OnMapShown);
-          var msg =  {"command":"new_data", "uuid": uuid,"path":path};
-          viz.NewDataFromWeb(msg);
-        }
-      } catch(e){
-        console.log("[Error][Upload Files]", e);
-      }
-      // Ensure that the progress bar displays 100% at the end.
-      progress.style.width = '100%';
-      progress.textContent = '100%';
-      setTimeout("document.getElementById('progress_bar').className='';", 2000);
-    }; 
-    xhr.upload.onprogress = updateProgress;
-    xhr.send(formData);
-    document.getElementById('progress_bar').className = 'loading';
-  };
 });
 
 

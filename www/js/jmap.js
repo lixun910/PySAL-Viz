@@ -184,8 +184,9 @@
   //////////////////////////////////////////////////////////////
   // JsonMap
   //////////////////////////////////////////////////////////////
-  var JsonMap = function(geoJson, extent) {
+  var JsonMap = function(geoJson, extent, prj) {
     this.geojson = geoJson;
+    this.prj = prj;
     this.shpType = this.geojson.features[0].geometry.type;
     this.bbox = [];
     this.centroids = [];
@@ -217,6 +218,7 @@
         maxX = Number.NEGATIVE_INFINITY,
         minY = Number.POSITIVE_INFINITY,
         maxY = Number.NEGATIVE_INFINITY;
+    var prjPt;
     for ( var i=0, n=this.geojson.features.length; i<n; i++ ) {
       var bminX = Number.POSITIVE_INFINITY,
           bmaxX = Number.NEGATIVE_INFINITY,
@@ -231,6 +233,13 @@
           part =  Array.isArray(part[0][0])? part[0] : part;
           for ( k=0, nPoints=part.length; k < nPoints; k++ ) {
             x = part[k][0], y = part[k][1];
+            if (this.prj) {
+              projPt = this.prj.forward([x, y]);
+              x = projPt[0];
+              y = projPt[1];
+              part[k][0] = x;
+              part[k][1] = y;
+            }
               if (x > maxX) {maxX = x;}
               if (x < minX) {minX = x;}
               if (y > maxY) {maxY = y;}
@@ -243,6 +252,13 @@
         }
       } else if ( typeof coords[0] == 'number') {
           x = coords[0], y = coords[1];
+          if (this.prj) {
+            projPt = this.prj.forward([x, y]);
+            x = projPt[0];
+            y = projPt[1];
+            coords[0] = x;
+            coords[1] = y;
+          }
           if (x > maxX) {maxX = x;}
           if (x < minX) {minX = x;}
           if (y > maxY) {maxY = y;}
@@ -255,6 +271,13 @@
       } else {
         for ( k=0, nPoints=coords.length; k < nPoints; k++ ) {
           x = coords[k][0], y = coords[k][1];
+          if (this.prj) {
+            projPt = this.prj.forward([x, y]);
+            x = projPt[0];
+            y = projPt[1];
+            coords[k][0] = x;
+            coords[k][1] = y;
+          }
             if (x > maxX) {maxX = x;}
             if (x < minX) {minX = x;}
             if (y > maxY) {maxY = y;}
@@ -389,23 +412,13 @@
   //////////////////////////////////////////////////////////////
   // LeaftletMap inherited from JsonMap
   //////////////////////////////////////////////////////////////
-  LeafletMap = function(geojson, LL, Lmap) {
-    JsonMap.call(this, geojson);
+  LeafletMap = function(geojson, LL, Lmap, prj) {
+    extent = undefined;
+    JsonMap.call(this, geojson, extent, prj);
    
     this.LL = LL; 
     this.Lmap = Lmap;
     this.Lmap.fitBounds([[this.mapBottom,this.mapLeft],[this.mapTop,this.mapRight]]);
-    /* 
-    this.zoom = this.Lmap.getZoom();
-    this.bounds = this.Lmap.getBounds();
-    
-    this.mapLeft = this.bounds.getWest();
-    this.mapRight = this.bounds.getEast();
-    this.mapBottom = this.bounds.getNorth();
-    this.mapTop = this.bounds.getSouth();
-    this.mapWidth = this.mapRight - this.mapLeft;
-    this.mapHeight = this.mapTop - this.mapBottom;
-    */
   };
   
   LeafletMap.prototype = Object.create(JsonMap.prototype);
@@ -444,8 +457,8 @@
     this.vratio = params ? params["vratio"] : 0.8;
     if (!this.vratio) this.vratio = 0.8;
     // alpha: draw the map with transparency
-    this.ALPHA = params ? params['alpha'] : 1;
-    if (!this.ALPHA) this.ALPHA = 1;
+    this.ALPHA = params ? params['alpha'] : 0.9;
+    if (!this.ALPHA) this.ALPHA = 0.9;
     // highlight alpha: when highlight, the alpha of background map
     this.HL_ALPHA = 0.4;
     
@@ -464,7 +477,7 @@
     this.shpType = this.map.shpType; 
     // multi-layer support 
     this.layers = {};
-    
+    this.layerColors = ['#FFCC33','#CC6699','#95CAE4','#993333','#279B61'];
     _self = this;
     
     this.selected = [];
@@ -520,11 +533,9 @@
         this.color_theme  = color_theme;
         this.buffer = this.createBuffer(this.mapcanvas);
         this.draw(this.buffer.getContext("2d"), this.color_theme);
-        
         if ( !this.noForeground ) {
           this.buffer2Screen();
         }   
-    
       }
     },
     
@@ -552,7 +563,6 @@
     old_highlight: function( ids, context, nolinking ) {
       if ( ids == undefined ) 
         return;
-        
       if ( context == undefined) { 
         context = _self.mapcanvas.getContext("2d");
         context.lineWidth = 0.3;
@@ -578,7 +588,6 @@
           context.lineWidth = 1;
           var colors = {};
           colors['dummy'] = ids;
-          
           if (_self.shpType == "Polygon" || _self.shpType == "MultiPolygon") {
             context.fillStyle = fillPattern;
             _self.drawPolygons( context, screenObjs, colors);
@@ -603,7 +612,6 @@
     highlight: function( ids, context, nolinking ) {
       if ( ids == undefined ) 
         return;
-        
       if ( context == undefined) { 
         context = _self.mapcanvas.getContext("2d");
         context.lineWidth = 0.3;
@@ -637,25 +645,20 @@
       if ( ids.length == 0 && extent == undefined ) {
         return;
       }
-      
       var x0 = extent[0], y0 = extent[1], x1 = extent[2], y1 = extent[3];
       var pt0 = _self.map.mapToScreen(x0, y0),
           pt1 = _self.map.mapToScreen(x1, y1);
-      
       var startX = pt0[0], startY = pt0[1], 
           w = pt1[0] - startX, 
           h = pt1[1] - startY;
-          
       if (w == 0 && h == 0) 
         return;
-    
       _self.selected = []; 
       var hdraw = [], ddraw = []; 
       var minPX = Math.min( pt0[0], pt1[0]),
           maxPX = Math.max( pt0[0], pt1[0]),
           minPY = Math.min( pt0[1], pt1[1]),
           maxPY = Math.max( pt0[1], pt1[1]);
-          
       for ( var i=0, n=_self.map.centroids.length; i<n; ++i) {
         var pt = _self.map.centroids[i],
             inside = false;
@@ -669,11 +672,9 @@
         if (bx[0] > x1 || bx[1] < x0 || bx[2] > y1 || bx[3] < y0) {
         } else if (x0 < bx[0] && bx[1] < x1 && y0 < bx[2] && bx[3] < y1) {
         } else {
-          if (inside) {
-            // draw it with highligh
+          if (inside) { // draw it with highligh
             hdraw.push(i);
-          } else {
-            // draw it with default
+          } else { // draw it with default
             ddraw.push(i);
           }
         }
@@ -681,12 +682,10 @@
       if ( hdraw.length + ddraw.length == 0) {
         return false;
       }
-      
       if (_self.noForeground) {
         _self.old_highlight(_self.selected, undefined, true);
         return;
       }
-      
       context = _self.mapcanvas.getContext("2d");
       context.imageSmoothingEnabled= false;
       context.lineWidth = 0.3;
@@ -696,26 +695,19 @@
         context.drawImage( _self.buffer, 0, 0);
       }
       context.globalAlpha = 1;
-      // save for clipping
-      context.save();
-      // specify area for clipping
-      context.beginPath();
+      context.save(); // save for clipping
+      context.beginPath(); // specify area for clipping
       context.rect( startX, startY, w, h);
       context.closePath();
-      // do clipping
-      context.clip();
+      context.clip(); // do clipping
       // change stroke color to match transparent color
       var old_stroke_c = new GColor(_self.STROKE_CLR);
       old_stroke_c.a = _self.HL_ALPHA;
       var new_stroke_c = old_stroke_c.toRGB();
       context.strokeStyle = new_stroke_c;
-      
       context.drawImage( _self.buffer, 0, 0);
       _self.drawSelect(ddraw, context, "unhighligh");
-      
-      // restore from clipping
-      context.restore();
-      // draw rest 
+      context.restore(); // restore from clipping, and draw reset
       context.globalAlpha = _self.ALPHA;
       context.strokeStyle = new_stroke_c;
       //_self.highlight(hdraw, context);
@@ -728,7 +720,6 @@
       context.stroke();
       context.closePath();
       context.strokeStyle = _self.STROKE_CLR;
-      
       if (linking) {
         var hl_range = [x0, y0, x1, y1];
         _self.triggerLink(_self.selected, hl_range);
@@ -873,10 +864,15 @@
     },
     
     drawPoints: function( ctx, points, colors ) {
+      var end = 2*Math.PI;
       if ( colors == undefined ) { 
         for ( var i=0, n=points.length; i<n; i++ ) {
           var pt = points[i];
-          ctx.fillRect(pt[0], pt[1], 3, 3);
+          //ctx.fillRect(pt[0], pt[1], 3, 3);
+          ctx.beginPath();
+          ctx.arc(pt[0], pt[1], 2, 0, end, true);
+          ctx.stroke();
+          ctx.fill();
         } 
       } else {
         for ( var c in colors ) {
@@ -884,16 +880,20 @@
           var ids = colors[c];
           for ( var i=0, n=ids.length; i< n; ++i) {
             var pt = points[ids[i]];
-            ctx.fillRect(pt[0], pt[1], 3, 3);
+            //ctx.fillRect(pt[0], pt[1], 3, 3);
+            ctx.beginPath();
+            ctx.arc(pt[0], pt[1], 2, 0, end, true);
+            ctx.stroke();
+            ctx.fill();
           } 
         }
-      }  
+      } 
     },
     
     draw: function(context,  colors, fillColor, strokeColor, lineWidth) {
       context.imageSmoothingEnabled= false;
       context.lineWidth = 0.3;
-      //context.globalAlpha = this.ALPHA;
+      context.globalAlpha = this.ALPHA;
       if (_self.shpType == "LineString" || _self.shpType == "Line") {
         context.strokeStyle = fillColor ? fillColor : _self.FILL_CLR;
         context.lineWidth = lineWidth ? lineWidth: _self.LINE_WIDTH;
@@ -909,15 +909,15 @@
       } else if (_self.shpType == "Line" || _self.shpType == "LineString") {
         _self.drawLines( context, _self.map.screenObjects, colors) ;
       }
-      
+      var i=0;
       for ( var uuid in _self.layers ) {
         var subMap = _self.layers[uuid];
         if (subMap.shpType == "LineString" || subMap.shpType == "Line") {
-          context.strokeStyle ='#'+Math.floor(Math.random()*16777215).toString(16);
+          context.strokeStyle = _self.layerColors[i];
           context.lineWidth = lineWidth ? lineWidth: _self.LINE_WIDTH;
         } else {
           context.strokeStyle = strokeColor ? strokeColor : _self.STROKE_CLR;
-          context.fillStyle = '#'+Math.floor(Math.random()*16777215).toString(16);
+          context.fillStyle = _self.layerColors[i];
         }
         if (subMap.shpType == "Polygon" || subMap.shpType == "MultiPolygon" ) {
           _self.drawPolygons( context, subMap.screenObjects, colors) ;
@@ -926,7 +926,9 @@
         } else if (subMap.shpType == "Line" || subMap.shpType == "LineString") {
           _self.drawLines( context, subMap.screenObjects, colors) ;
         }
+        i += 1;
       }
+      context.globalAlpha = 1;
     }, 
     
     drawSelect: function( ids, context, invisible) {

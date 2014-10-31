@@ -14,7 +14,7 @@
     this.dataDict = {};
     this.popupWins = {}; //messageID:window
     this.msgDict = {};
-    
+    this.prj = undefined;
     this.canvas = canvas;
     this.container = container;
     
@@ -103,7 +103,9 @@
    */
   d3viz.prototype.ShowMap = function(uuid, callback) {
     var json_url = this.GetJsonUrl(uuid);
-    this.canvas = $('<canvas id="' + uuid + '"></canvas>').appendTo(this.container);
+    if ( this.canvas == undefined) {
+      this.canvas = $('<canvas id="' + uuid + '"></canvas>').appendTo(this.container);
+    }
     this.GetJSON( json_url, function(data) {
       if ( typeof data == "string") {
         data = JSON.parse(data);
@@ -116,7 +118,36 @@
       callback();
     }
   };
+ 
+  d3viz.prototype.AddLeafletMap = function(subUuid, L, lmap, prj, callback) {
+    var json_url = this.GetJsonUrl(subUuid);
+    this.GetJSON( json_url, function(data) {
+      if ( typeof data == "string") {
+        data = JSON.parse(data);
+      }
+      self.map.addLayer(subUuid, new LeafletMap(data, L, lmap, prj));
+      self.mapDict[subUuid] = self.map;
+      self.dataDict[subUuid] = data;
+    });
+    if (typeof callback === "function") {
+      callback();
+    }
+  };
   
+  d3viz.prototype.AddPlainMap = function(subUuid) {
+    var json_url = this.GetJsonUrl(subUuid);
+    this.GetJSON( json_url, function(data) {
+      if ( typeof data == "string") {
+        data = JSON.parse(data);
+      }
+      self.map.addLayer(subUuid, new JsonMap(data));
+      self.mapDict[subUuid] = self.map;
+      self.dataDict[subUuid] = data;
+    });
+    if (typeof callback === "function") {
+      callback();
+    }
+  };
   /**
    * add layer in an existing map
    * parameters: canvas -- $() jquery object
@@ -170,7 +201,7 @@
   /**
    * Create a new Leaftlet map
    */
-  d3viz.prototype.ShowLeafletMap = function(uuid, L, lmap, options, callback) {
+  d3viz.prototype.ShowLeafletMap = function(uuid, L, lmap, prj, options, callback) {
     var json_url = this.GetJsonUrl(uuid);
     //already have canvas as foreground
     //this.canvas = $('<canvas id="' + uuid + '"></canvas>').appendTo(this.container);
@@ -178,7 +209,7 @@
       if ( typeof data == "string") {
         data = JSON.parse(data);
       }
-      self.map = new GeoVizMap(new LeafletMap(data, L, lmap), self.canvas, options);
+      self.map = new GeoVizMap(new LeafletMap(data, L, lmap, prj), self.canvas, options);
       self.mapDict[uuid] = self.map;
       self.dataDict[uuid] = data;
       if (typeof callback === "function") {
@@ -275,7 +306,7 @@
     if (this.socket.readyState == 1) {
       this.socket.send(JSON.stringify(msg));
     } else {
-      setTimeout(function(){self.NewDataFromWeb(msg)}, 10);
+      setTimeout(function(){self.NewDataFromWeb(msg);}, 10);
     }
   };
   

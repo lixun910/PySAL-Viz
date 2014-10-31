@@ -5,6 +5,7 @@
 <title>XGeo.app</title>
 <link rel="stylesheet" href="css/portal.css" />
 <link rel="stylesheet" href="css/leaflet.css" />
+<link rel="stylesheet" href="css/jquery.switchButton.css" />
 <link rel="stylesheet" href="css/ui-lightness/jquery-ui-1.10.4.custom.min.css">
 
 <script src="js/jquery.min.js"></script>
@@ -16,6 +17,7 @@
 <script src="js/list.min.js"></script>
 <script src="js/d3viz.js"></script>
 <script src="js/portal.js"></script>
+<script src="js/proj4-src.js"></script>
 <script src="js/jquery.switchButton.js"></script>
 </head>
 
@@ -27,14 +29,16 @@
         <tr>
         <td><span class="text-logo">D3Viz<span></td>
         <td><div class="block_button" id="btnOpenData"></div></td>
+        <td><div class="block_button" id="btnAddLayer"></div></td> 
+        <td><div class="block_button" id="btnCartoDB"></div></td> 
+        <td><div class="block_button" id="btnRoadNetwork"></div></td> 
+        <td><div class="block_button" id="btnKDE"></div></td> 
         <td><div class="block_button" id="btnCreateW"></div></td>
         <td><div class="block_button" id="btnSpreg"></div></td>
-        <td><div class="block_button" id="btnAddLayer"></div></td> 
         <td><div class="block_button" id="btnSave"></div></td> 
         <td><div class="block_button" id="btnShowTable"></div></td> 
         <td><div class="block_button" id="btnWHistogram"></div></td> 
         <td><div class="block_button" id="btnNewMap"></div></td> 
-        <td><div class="block_button" id="btnKDE"></div></td> 
         <td><div class="block_button" id="btnScatterPlot"></div></td> 
         <td><div class="block_button" id="btnHist"></div></td> 
         <td><div class="block_button" id="btnPCP"></div></td> 
@@ -43,20 +47,19 @@
         <td><img src="https://geodacenter.asu.edu/drupal_files/geoda_logo.png" style="margin-left:30px;opacity:0.6;" height=22></td>
         </tr>
       </table>
-    </div>
+  </div>
+  <div class="switch-wrapper"><input type="checkbox" id="switch" value="1" checked></div>
 </div>
 <!--
 ///////////////////////////////////////////////////////////////////////////////
 // Main Body
 ///////////////////////////////////////////////////////////////////////////////
 -->
-<div style="padding-top:100px"></div>
+<div style="padding-top:100px">
+</div>
 <div id="map-container">
   <div id="map"></div>
   <canvas id="foreground" style="position: absolute; top: 0; left: 0;width: 100%; height: 100%;"></canvas>
-<div class="switch-wrapper">
-  <input type="checkbox" id="switch" value="1" checked>
-</div>
 </div>
 <div id="map-uuid" style="width:300px;align:center;"></div>
 </center>
@@ -74,8 +77,9 @@
     <ul>
       <li><a href="#tabs-1">Local Disk</a></li>
       <li><a href="#tabs-2">CartoDB</a></li>
-      <li><a href="#tabs-2">Dropbox</a></li>
-      <li><a href="#tabs-3">Existing Maps</a></li>
+      <li><a href="#tabs-3">Socrata</a></li>
+      <li><a href="#tabs-4">Dropbox</a></li>
+      <li><a href="#tabs-5">Existing Maps</a></li>
     </ul>
     <div id="tabs-1">
       <div id="drop_zone">Drop files here
@@ -90,6 +94,7 @@
     </div>
     <div id="tabs-2">
       <form id="cartodb-form">
+        <img src="img/cartodb.png">
         <table>
           <tr>
             <td>CartoDB user id</td>
@@ -113,12 +118,20 @@
       </form>
     </div>
     <div id="tabs-3">
+        <img src="img/cartodb.png">
+        <table>
+          <tr>
+            <td>Socrata GeoJSON url</td>
+            <td>
+              <input type="text" id="txt-socrata-url" size=55 value="">
+            </td>
+          </tr>
+        </table>
     </div>
     <div id="tabs-4">
     </div>
   </div>
 </div>
-
 
 <!--
 ///////////////////////////////////////////////////////////////////////////////
