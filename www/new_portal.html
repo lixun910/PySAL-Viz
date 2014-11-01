@@ -7,10 +7,11 @@
 <link rel="stylesheet" href="css/leaflet.css" />
 <link rel="stylesheet" href="css/jquery.switchButton.css" />
 <link rel="stylesheet" href="css/ui-lightness/jquery-ui-1.10.4.custom.min.css">
+<link rel="stylesheet" href="http://libs.cartocdn.com/cartodb.js/v3/themes/css/cartodb.css" />
 
+<script src="http://libs.cartocdn.com/cartodb.js/v3/cartodb.js"></script>
 <script src="js/jquery.min.js"></script>
 <script src="js/d3.v3.min.js"></script>
-<script src="js/leaflet.js"></script>
 <script src="js/jmap.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/jquery-ui-1.10.4.custom.min.js"></script>
@@ -64,7 +65,6 @@
 </div>
 <div id="map-uuid" style="width:300px;align:center;"></div>
 </center>
-<div id="divPop" class="bubble">This is Popup Div.</div>
 
 
 <!--
@@ -112,7 +112,7 @@
           <tr>
             <td>CartoDB table name</td>
             <td>
-              <input type="text" id="txt-carto-table" value="sf_plots" size=55>
+              <input type="text" id="txt-carto-table" value="man_seg_road" size=55>
             </td>
           </tr>
         </table>
@@ -904,5 +904,10 @@
   </div>
 </div>
 
+<div id="divPop" class="bubble">This is Popup Div.</div>
+<div id="divDownload" class="bubble">
+  <span>Downloading data for spatial analysis...</span><br/>
+  <span><img src="img/progress-bar.gif"></span>
+</div>
 </body>
 </html>

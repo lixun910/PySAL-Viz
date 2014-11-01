@@ -121,6 +121,44 @@ class AnswerMachine(threading.Thread):
                         "parameters": params
                     }
                     self.ws.send(json.dumps(msg))
+                    
+                elif command == "cartodb_get_all_tables":
+                    wid = msg["wid"]
+                    uid = msg['uid'] if 'uid' in msg else CARTODB_DOMAIN 
+                    key = msg['key'] if 'key' in msg else CARTODB_API_KEY
+                    table_names = []
+                    if uid and key:
+                        CARTODB_DOMAIN = uid
+                        CARTODB_API_KEY = key
+                    if CARTODB_API_KEY and CARTODB_DOMAIN:
+                        table_names = self.parent.cartodb_get_all_tables()
+                    msg = {"command" : "rsp_cartodb_get_all_tables"}
+                    msg["table_names"] = table_names
+                    self.ws.send(json.dumps(msg))
+                    
+                elif command == "cartodb_download_table":
+                    wid = msg["wid"]
+                    uid = msg['uid'] if 'uid' in msg else CARTODB_DOMAIN 
+                    key = msg['key'] if 'key' in msg else CARTODB_API_KEY
+                    table_name = msg['table_name'] 
+                    uuid = ""
+                    if uid and key:
+                        CARTODB_DOMAIN = uid
+                        CARTODB_API_KEY = key
+                    if CARTODB_API_KEY and CARTODB_DOMAIN:
+                        print "start downloading table"
+                        shp_path = self.parent.cartodb_get_data(table_name)
+                        shp = pysal.open(shp_path,'r')
+                        uuid = self.parent.shp2json(shp) 
+                    msg = {"command" : "rsp_cartodb_download_table"}
+                    msg['wid'] = wid
+                    msg["uuid"] = uuid
+                    prj_path = shp_path[:-3]+"prj" 
+                    projection = open(prj_path,'r').read().strip()
+                    msg["projection"] = projection
+                    print "send back download cartodb"
+                    self.ws.send(json.dumps(msg))
+                    
                 elif command == "new_lisa_map":
                     uuid = msg["uuid"]
                     var = msg["var"]
@@ -194,9 +232,8 @@ class AnswerMachine(threading.Thread):
                     R_SHP_DICT[uuid]["weights"][w_name] = {
                         'w':w, 'type':w_type
                     }
-                    results = {'command':'rsp_create_w', 'wid': wid, 'content': {
-                        w_name : {'type':w_type}
-                        }}
+                    results = {'command':'rsp_create_w', 'wid': wid, \
+                               'content': {w_name : {'type':w_type}}}
                     self.ws.send(json.dumps(results))
                 
                 elif command == "spatial_regression":
@@ -395,7 +432,9 @@ def getuuid(shp):
     """
     Generate UUID using absolute path of shapefile
     """
-    return md5.md5(shp.dataPath).hexdigest()
+    file_path = shp.dataPath
+    file_name = os.path.basename(file_path)
+    return md5.md5(file_name).hexdigest()
    
 def getmsguuid():
     """
@@ -461,6 +500,7 @@ def shp2json(shp, rebuild=False, uuid=None):
         geojson.close()
     else:
         print "The geojson data has been created before. If you want re-create geojson data, please call shp2json(shp, rebuild=True)."
+    return uuid
 
 def init_map(shp, rebuild=False, uuid=None):
     shp2json(shp, rebuild=rebuild, uuid=uuid)
@@ -1289,6 +1329,23 @@ def cartodb_count_pts_in_polys(poly_tbl, pt_tbl, count_col_name):
     content = response.read()
     
 
+def cartodb_get_all_tables():
+    import requests
+    sql = "SELECT table_name FROM information_schema.tables WHERE table_schema='public'"
+    params = { 'api_key': CARTODB_API_KEY, 'q': sql,}
+    r = requests.get(url, params=params, verify=False)
+    content = r.json()    
+    table_names = []
+    if "error" in content:
+        print "get all tables () error:", content
+    else:
+        rows = content["rows"]
+        for row in rows:
+            table_name = row["table_name"] 
+            if table_name not in ["raster_columns","raster_overviews", "spatial_ref_sys","geometry_columns","geography_columns"]:
+                table_names.append(table_name)
+    return table_names
+                
 #################################################
 #
 # Network

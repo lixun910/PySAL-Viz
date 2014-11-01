@@ -10,17 +10,22 @@
     this.socket = undefined;
     this.map = undefined;
     this.version = "0.1";
-    this.mapDict = {};
+    this.mapDict = {}; // uuid:GeoVizMap
     this.dataDict = {};
     this.popupWins = {}; //messageID:window
     this.msgDict = {};
     this.prj = undefined;
     this.canvas = canvas;
     this.container = container;
+    // carto db
+    this.userid = undefined;
+    this.key = undefined;
     
     this.RequestParam_callback = undefined;
     this.CreateWeights_callback = undefined;
     this.RunSpreg_callback = undefined;
+    this.callback_GetAllTables = undefined;
+    this.callback_DownloadTable = undefined;
     
     self = this;
   };
@@ -369,6 +374,33 @@
       setTimeout(function(){self.RequestParameters( winID, callback)}, 10);
     }
   };
+  
+  
+  d3viz.prototype.CartoGetAllTables = function(uid, key, successHandler) {
+    var msg = {"command":"cartodb_get_all_tables"};
+    msg["wid"] = this.id;
+    if (uid) msg["uid"] = uid;
+    if (key) msg["key"] = key;
+    if (this.socket && this.socket.readyState == 1) {
+      this.socket.send(JSON.stringify(msg));
+      this.callback_GetAllTables = successHandler;
+    } else {
+      setTimeout(function(){self.CartoGetAllTables(uid, key, successHandler)}, 10);
+    }
+  };
+  
+  d3viz.prototype.CartoDownloadTable = function(uid, key, table_name, successHandler) {
+    var msg = {"command":"cartodb_download_table", "wid":this.id};
+    if (uid) msg["uid"] = uid;
+    if (key) msg["key"] = key;
+    if (table_name) msg["table_name"] = table_name;
+    if (this.socket && this.socket.readyState == 1) {
+      this.socket.send(JSON.stringify(msg));
+      this.callback_DownloadTable = successHandler;
+    } else {
+      setTimeout(function(){self.CartoDownloadTable(uid, key, successHandler)}, 10);
+    }
+  };
   /**
    * Setup WebSocket Server Communications
   PySal can send a command "add_layer:{uri:abc.shp}" to ws server.
@@ -405,64 +437,17 @@
             
           } else if ( command == "select" ) {
             self.SelectOnMap(msg); //
+            
+          } else if ( command == "rsp_cartodb_get_all_tables" && self.id == winID) {
+            self.callback_GetAllTables(msg);
+          } else if ( command == "rsp_cartodb_download_table" && self.id == winID) {
+            self.callback_DownloadTable(msg);
           } 
         } catch (err) {
           console.error("Parsing server msg error:", msg, err);            
         }
       };
     };
-    /*
-    socket.onopen = function(event) {
-      //socket.send('{connected:'+ pageid + '}');
-      var msg, command, addMsg, rspMsg;
-      socket.onmessage = function(e) {
-        try {
-          msg = JSON.parse(e.data);
-          command = msg.command;  
-          if ( command == "close_all" ) {
-            self.CloseAllPopUps(); //
-          } else if ( command == "show_map" ) {
-            self.ShowMap(msg); //
-          } else if ( command == "add_layer" ) {
-            self.AddLayer(msg); //
-          } else if ( command == "remove_layer" ) {
-            //
-          } else if ( command == "select" ) {
-            self.SelectOnMap(msg); //
-          } else if ( command == "clear_select" ) {
-            //
-          } else if ( command == "get_select" ) {
-            addMsg = self.GetSelected(msg); //
-          } else if ( command == "thematic_map" ) {
-            self.ShowThematicMap(msg); //
-          //} else if ( command == "equal_interval_map" ){
-          //} else if ( command == "fisher_jenks_map" ) {
-          } else if ( command == "histogram" ){
-            //
-          } else if ( command == "moran_scatter_plot" ){
-            self.ShowMoranScatterPlot(msg);  //
-          } else if ( command == "scatter_plot" ){
-            self.ShowScatterPlot(msg);  //
-          } else if ( command == "scatter_plot_matrix" ){
-            self.ShowScatterPlotMatrix(msg);  //
-          } else if ( command == "cartodb_map" ){
-            self.ShowCartodbMap(msg); //
-          }
-         
-          rspMsg = {'command': msg.command, 'response': 'OK'};
-          for (var key in addMsg) {
-            if (addMsg.hasOwnProperty(key)) {
-              rspMsg[key] = addMsg[key];
-            }
-          }
-
-          socket.send( JSON.stringify(rspMsg) );
-        } catch (err) {
-          console.error("Parsing server msg error:", msg, err);            
-        }
-      };
-    };
-    */
   };
  
   // End and expose d3viz to 'window'

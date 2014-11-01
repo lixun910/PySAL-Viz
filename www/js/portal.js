@@ -8,7 +8,9 @@ function ShowMsgBox(title, content) {
   $('#dlg-msg').dialog('open');
 }
 
-var viz, foreground, lmap, map, uuid, winID, 
+var viz, 
+    cartolx, carto_uid, carto_key, carto_layer,
+    foreground, lmap, map, uuid, winID, 
     prj,
     gHasProj     =false, 
     gShowLeaflet =false, 
@@ -21,7 +23,8 @@ $(document).ready(function() {
   winID = getParameterByName("wid");
   
   // create Leaflet map 
-  lmap = L.map('map');
+  lmap = new L.Map('map', {center: [43, -98], zoom: 1});
+
   L.tileLayer('https://{s}.tiles.mapbox.com/v3/{id}/{z}/{x}/{y}.png', {
     maxZoom: 18,
     attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, ' + 
@@ -163,7 +166,38 @@ $(document).ready(function() {
         click: function() {
           var sel_id = $("#tabs-dlg-open-file").tabs('option','active');
           if (sel_id == 1) {
-            // cartodb: download map from cartodb
+            carto_uid = $('#txt-carto-id').val();
+            carto_key = $('#txt-carto-key').val();
+            table_name = $('#txt-carto-table').val();
+            //show cartodb layer and downloading iconp
+            if (carto_layer) lmap.removeLayer(carto_layer);
+            carto_layer = cartodb.createLayer(lmap, {
+              user_name: carto_uid, 
+              type: 'cartodb',
+              sublayers:[{
+                sql:"SELECT * FROM " + table_name,
+                cartocss: '#layer {line-color: #006400;}'
+              }]
+            })
+            .addTo(lmap)
+            .on('done', function(layer_) {
+              var sql = new cartodb.SQL({user: carto_uid});
+              sql.getBounds("SELECT * FROM " + table_name).done(function(bounds){
+                lmap.fitBounds(bounds);
+              });
+            });
+            //lmap.addLayer(carto_layer);
+            viz.CartoDownloadTable(carto_uid, carto_key, table_name, function(msg){
+              // when done remove cartodb layer
+              lmap.removeLayer(carto_layer);
+              carto_layer = undefined;
+              gHasProj = true;
+              var ip = msg.projection; 
+              prj = proj4(ip, proj4.defs('WGS84'));
+              uuid = msg.uuid;  
+              var noForeground = true;
+              showLeafletMap(uuid, noForeground);
+            });
           }
           $( this ).dialog( "close" );
         },
@@ -178,22 +212,27 @@ $(document).ready(function() {
   });
   //$('#dialog-open-file').dialog('open');
   // switch leaflet
-  var showLeafletMap = function(uuid) {
+  var showLeafletMap = function(uuid, noForeground) {
     if (uuid && viz) {
+      foreground = $('#foreground').attr("id", uuid); 
+      viz.canvas = foreground;
       gShowLeaflet = true;
       if ( gHasProj && prj == undefined) {
         // wait for reading *.prj file 
         setTimeout(function(){showLeafletMap(uuid);}, 10);  
       } else {
         $('#map').show();
+        if (noForeground==undefined) noForeground = false;
         viz.ShowLeafletMap(uuid, L, lmap, prj, {
-          "hratio": 1, "vratio": 1, "alpha": 0.8,
+          "hratio": 1, "vratio": 1, "alpha": 0.8, "noforeground": noForeground
         }, OnMapShown);
       }
     }
   };
   var showPlainMap = function(uuid) {
     if (uuid && viz) {
+      foreground = $('#foreground').attr("id", uuid); 
+      viz.canvas = foreground;
       gShowLeaflet = false;
       viz.ShowMap(uuid,OnMapShown); 
     }
@@ -305,8 +344,6 @@ $(document).ready(function() {
           var path = data["path"];
           if ( gAddLayer == false ) { // open new map
             uuid = data["uuid"];
-            foreground = $('#foreground').attr("id", uuid); 
-            viz.canvas = foreground;
             if ( gHasProj || gShowLeaflet == true) {
               showLeafletMap(uuid);
             } else {
