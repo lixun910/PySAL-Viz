@@ -9,7 +9,8 @@
 <link rel="stylesheet" href="css/ui-lightness/jquery-ui-1.10.4.custom.min.css">
 <link rel="stylesheet" href="http://libs.cartocdn.com/cartodb.js/v3/themes/css/cartodb.css" />
 
-<script src="http://libs.cartocdn.com/cartodb.js/v3/cartodb.js"></script>
+<!--<script src="http://libs.cartocdn.com/cartodb.js/v3/cartodb.js"></script>-->
+<script src="js/leaflet.js"></script>
 <script src="js/jquery.min.js"></script>
 <script src="js/d3.v3.min.js"></script>
 <script src="js/jmap.js"></script>
@@ -50,7 +51,6 @@
         </tr>
       </table>
   </div>
-  <div class="switch-wrapper"><input type="checkbox" id="switch" value="1" checked></div>
 </div>
 <!--
 ///////////////////////////////////////////////////////////////////////////////
@@ -119,7 +119,7 @@
       </form>
     </div>
     <div id="tabs-3">
-        <img src="img/socratalogo.png"><br/>
+        <img src="img/socratalogo.png" style="margin:5px"><br/>
         <table>
           <tr>
             <td>Socrata data url:</td>
@@ -132,6 +132,8 @@
     <div id="tabs-4">
     </div>
   </div>
+  <br/><br/>
+  <div id="progress_bar_openfile"><img src="img/progress-bar.gif"></div>
 </div>
 
 <!--
@@ -164,12 +166,6 @@
               <input type="text" id="txt-carto-key" size=55 value="340808e9a453af9680684a65990eb4eb706e9b56">
             </td>
           </tr>
-          <tr>
-            <td>CartoDB table name</td>
-            <td>
-              <input type="text" id="txt-carto-table" value="sf_plots" size=55>
-            </td>
-          </tr>
         </table>
       </form>
     </div>
@@ -177,10 +173,12 @@
       <form id="cartodb-download-form">
         <table>
           <tr>
-            <td>Select a table to download</td>
+            <td>Select a table to download&nbsp;&nbsp;&nbsp;</td>
             <td>
-              <input type="text" id="txt-carto-table" value="sf_plots" size=55>
+              <select id="sel-carto-table-download">
+              </select>
             </td>
+            <td><img src="img/find.png"></td>
           </tr>
         </table>
       </form>
@@ -189,9 +187,10 @@
       <form id="cartodb-upload-form">
         <table>
           <tr>
-            <td>Select a map to upload</td>
+            <td>Select a map to upload&nbsp;&nbsp;&nbsp;</td>
             <td>
-              <input type="text" id="txt-carto-table" value="sf_plots" size=55>
+              <select id="sel-carto-table-upload">
+              </select>
             </td>
           </tr>
         </table>
@@ -213,17 +212,27 @@
             </td>
           </tr>
           <tr>
-            <td>Select method how many objects in first layer </td>
+            <td>Method: first layer </td>
             <td>
-              <input type="text" id="txt-carto-table" value="sf_plots" size=35>
+              <select id="sel-cartodb-count-method">
+              <option value="contain" selected>contain</option>
+              <option value="intersect">intersect with</option>
+              </select>
+            second layer.</td>
+          </tr>
+          <tr>
+            <td>Input the new column name <br/>
+            for storing the counts in first layer:</td>
+            <td>
+              <input type="text" id="txt-carto-col-name" size=35 value="">
             </td>
-            <td> in objects in second layer.</td>
           </tr>
         </table>
       </form>
     </div>
   </div>
-  <div id="progress_bar_cartodb"><div class="percent">0%</div></div>
+  <br/><br/>
+  <div id="progress_bar_cartodb"><img src="img/progress-bar.gif"></div>
 </div>
 
 <!--
@@ -245,7 +254,8 @@
           <tr>
             <td>Select a road layer</td>
             <td>
-              <input type="text" id="txt-carto-id" size=25 value="">
+              <select id="sel-road-seg">
+              </select>
             </td>
           </tr>
           <tr>
@@ -263,13 +273,15 @@
           <tr>
             <td>Select a point layer</td>
             <td>
-              <input type="text" id="txt-carto-table" value="sf_plots" size=55>
+              <select id="sel-road-snap-point-layer">
+              </select>
             </td>
           </tr>
           <tr>
             <td>Select a road layer</td>
             <td>
-              <input type="text" id="txt-carto-table" value="sf_plots" size=55>
+              <select id="sel-road-snap-road-layer">
+              </select>
             </td>
           </tr>
         </table>
@@ -281,7 +293,8 @@
           <tr>
             <td>Select a road layer</td>
             <td>
-              <input type="text" id="txt-carto-table" value="sf_plots" size=55>
+              <select id="sel-road-w-road-layer">
+              </select>
             </td>
           </tr>
           <tr>
@@ -297,7 +310,8 @@
       </form>
     </div>
   </div>
-  <div id="progress_bar_cartodb"><div class="percent">0%</div></div>
+  <br/>  <br/>
+  <div id="progress_bar_road"><img src="img/progress-bar.gif"></div>
 </div>
 
 
@@ -378,12 +392,8 @@
     <div id="tabs-3">
     </div>
   </div>
-  <table>
-    <tr><td></td></tr>
-    <tr>
-      
-    </tr>
-  </table>
+  <br/>  <br/>
+  <div id="progress_bar_spacetime"><img src="img/progress-bar.gif"></div>
 </div>
 <!--
 ///////////////////////////////////////////////////////////////////////////////
@@ -568,7 +578,7 @@
           </td>
         </tr>
         <tr>
-          <td>Number of Neighbors</td>
+          <td>Numbe of Neighbors</td>
           <td><input type="text" id="txt-kel-nn" value="1"></td>
         </tr>
       </table>
@@ -905,9 +915,12 @@
 </div>
 
 <div id="divPop" class="bubble">This is Popup Div.</div>
-<div id="divDownload" class="bubble">
+<div id="mapInfo">
+  <div class="switch-wrapper"><input type="checkbox" id="switch" value="1" checked></div>
+  <div id="divDownload">
   <span>Downloading data for spatial analysis...</span><br/>
   <span><img src="img/progress-bar.gif"></span>
+  </div>
 </div>
 </body>
 </html>

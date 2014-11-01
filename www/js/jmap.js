@@ -301,16 +301,16 @@
     return [minX, maxX, minY, maxY];
   };
   
-  JsonMap.prototype.fitScreen = function(screenWidth, screenHeight) {
+  JsonMap.prototype.fitScreen = function(screenWidth, screenHeight,marginLeft, marginTop) {
     // convert raw points to screen coordinators
     var whRatio = this.mapWidth / this.mapHeight,
-        xyRatio = screenWidth / screenHeight,
-        offsetX = 0.0,
-        offsetY = 0.0; 
+        xyRatio = (screenWidth-marginLeft*2) / (screenHeight - marginTop*2),
+        offsetX = marginLeft,
+        offsetY = marginTop; 
     if ( xyRatio >= whRatio ) {
-      offsetX = (screenWidth - screenHeight * whRatio) / 2.0;
+      offsetX = (screenWidth - screenHeight * whRatio) / 2.0 + marginLeft;
     } else if ( xyRatio < whRatio ) {
-      offsetY = (screenHeight - screenWidth / whRatio) / 2.0;
+      offsetY = (screenHeight - screenWidth / whRatio) / 2.0 + marginTop;
     }
     screenWidth = screenWidth - offsetX * 2;
     screenHeight =  screenHeight - offsetY * 2;
@@ -470,9 +470,11 @@
     this.LINE_WIDTH = 1;
   
     this.mapcanvas = mapcanvas instanceof jQuery ? mapcanvas[0] : mapcanvas;
-    this.mapcanvas.width = this.mapcanvas.parentNode.clientWidth * this.hratio;
-    this.mapcanvas.height = this.mapcanvas.parentNode.clientHeight * this.vratio;
-   
+    this.mapcanvas.width = this.mapcanvas.parentNode.clientWidth;
+    this.mapcanvas.height = this.mapcanvas.parentNode.clientHeight;
+    this.margin_left = this.mapcanvas.width * (1-this.hratio)/2.0;
+    this.margin_top = this.mapcanvas.height * (1-this.vratio)/2.0;
+    
     this.map = map;
     this.shpType = this.map.shpType; 
     // multi-layer support 
@@ -506,7 +508,7 @@
     
     
     // draw map on Canvas
-    this.map.fitScreen(this.mapcanvas.width, this.mapcanvas.height);
+    this.map.fitScreen(this.mapcanvas.width, this.mapcanvas.height, this.margin_left, this.margin_top);
     
     this.buffer = this.createBuffer();
     
@@ -984,13 +986,17 @@
         this.offsetX = params['offsetX'] ? params['offsetX'] : 0;
         this.offsetY = params['offsetY'] ? params['offsetY'] : 0;
       }
-      var newWidth = _self.mapcanvas.parentNode.clientWidth * _self.hratio;
-      var newHeight = _self.mapcanvas.parentNode.clientHeight * _self.vratio;
+      var newWidth = _self.mapcanvas.parentNode.clientWidth;
+      var newHeight = _self.mapcanvas.parentNode.clientHeight;
       _self.mapcanvas.width = newWidth;
       _self.mapcanvas.height = newHeight;
-      _self.map.fitScreen(newWidth, newHeight);
+      marginLeft = newWidth * (1-_self.hratio)/2.0;
+      marginTop = newHeight * (1-_self.vratio)/2.0;
+      _self.margin_left = marginLeft;
+      _self.margin_top = marginTop;
+      _self.map.fitScreen(newWidth, newHeight,marginLeft, marginTop);
       for (var uuid in _self.layers) {
-        _self.layers[uuid].fitScreen(newWidth, newHeight);
+        _self.layers[uuid].fitScreen(newWidth, newHeight,marginLeft,marginTop);
       }
       _self.buffer = _self.createBuffer();
       _self.draw(_self.buffer.getContext("2d"), _self.color_theme);

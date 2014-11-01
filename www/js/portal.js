@@ -107,7 +107,6 @@ $(document).ready(function() {
   //////////////////////////////////////////////////////////////
   //  Init UI
   //////////////////////////////////////////////////////////////
-  $('#divPop').hide();
   jQuery.fn.popupDiv = function (divToPop, text) {
     var pos=$(this).offset();
     var h=$(this).height();
@@ -121,16 +120,14 @@ $(document).ready(function() {
       setTimeout(function(){ $(divToPop).fadeOut('slow');}, 2000);
     });
   };
-  $('#img-id-chk').hide();
-  $('#img-id-spin').hide();
-  $('#img-id-nochk').hide();
+  $('#divPop,#divDownload, #img-id-chk, #img-id-spin, #img-id-nochk, .dlg-loading, #progress_bar_openfile, #progress_bar_cartodb,#progress_bar_road,#progress_bar_spacetime').hide();
+  
   $( "#dlg-msg" ).dialog({
     dialogClass: "dialogWithDropShadow",
     width: 400, height: 200, autoOpen: false, modal: true,
     buttons: {OK: function() {$( this ).dialog( "close" );}}
   });
   $('#dlg-msg').hide();
-  $('.dlg-loading').hide();
   $('#btnOpenData').click(function(){
     gAddLayer = false;
     $('#dialog-open-file').dialog('option','title','Open Map Dialog');
@@ -155,7 +152,7 @@ $(document).ready(function() {
   //////////////////////////////////////////////////////////////
   $('#tabs-dlg-open-file').tabs();
   $( "#dialog-open-file" ).dialog({
-    height: 380,
+    height: 400,
     width: 480,
     autoOpen: true,
     modal: false,
@@ -198,7 +195,23 @@ $(document).ready(function() {
               var noForeground = true;
               showLeafletMap(uuid, noForeground);
             });
-          }
+          } else if (sel_id == 2) {
+            var socrata_url = $('#txt-socrata-url').val();
+            // download socrata data (geojson to local disk) 
+            // |__ convert geojso to ESRI shapefile
+            // |__ rename the geojson to UUID.json
+            // |__ return UUID
+            $.post("./cgi-bin/download_json.py", {url:socrata_url}, function(){
+              $('#progress_bar_openfile').show();
+            })
+            .done(function( data ) {
+              var uuid = data['uuid'];
+              $('#progress_bar_openfile').hide();
+              gHasProj = true;
+              showLeafletMap(uuid);
+            });
+          } 
+          
           $( this ).dialog( "close" );
         },
       },
