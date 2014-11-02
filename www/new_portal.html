@@ -9,8 +9,10 @@
 <link rel="stylesheet" href="css/ui-lightness/jquery-ui-1.10.4.custom.min.css">
 <link rel="stylesheet" href="http://libs.cartocdn.com/cartodb.js/v3/themes/css/cartodb.css" />
 
-<!--<script src="http://libs.cartocdn.com/cartodb.js/v3/cartodb.js"></script>-->
+<script src="http://libs.cartocdn.com/cartodb.js/v3/cartodb.js"></script>
+<!--
 <script src="js/leaflet.js"></script>
+-->
 <script src="js/jquery.min.js"></script>
 <script src="js/d3.v3.min.js"></script>
 <script src="js/jmap.js"></script>
@@ -112,8 +114,9 @@
           <tr>
             <td>CartoDB table name</td>
             <td>
-              <input type="text" id="txt-carto-table" value="man_seg_road" size=55>
+              <select id="sel-file-carto-tables"></select>
             </td>
+            <td>&nbsp;&nbsp;&nbsp;<img id='btn-file-cartodb-get-all-tables'src="img/find.png"></td>
           </tr>
         </table>
       </form>
@@ -157,13 +160,13 @@
           <tr>
             <td>CartoDB user id</td>
             <td>
-              <input type="text" id="txt-carto-id" size=55 value="lixun910">
+              <input type="text" id="txt-carto-setup-id" size=55 value="lixun910">
             </td>
           </tr>
           <tr>
             <td>CartoDB app key</td>
             <td>
-              <input type="text" id="txt-carto-key" size=55 value="340808e9a453af9680684a65990eb4eb706e9b56">
+              <input type="text" id="txt-carto-setup-key" size=55 value="340808e9a453af9680684a65990eb4eb706e9b56">
             </td>
           </tr>
         </table>
@@ -174,11 +177,13 @@
         <table>
           <tr>
             <td>Select a table to download&nbsp;&nbsp;&nbsp;</td>
+          </tr>
+          <tr>
             <td>
               <select id="sel-carto-table-download">
               </select>
             </td>
-            <td><img src="img/find.png"></td>
+            <td>&nbsp;&nbsp;&nbsp;<img id='btn-cartodb-get-all-tables'src="img/find.png"></td>
           </tr>
         </table>
       </form>
@@ -197,23 +202,27 @@
       </form>
     </div>
     <div id="tabs-4">
+      <p style="text-align: left">Example of Spatial Contains:</p>
+      <br><img src="img/pnp.png"><br><br>
+      
       <form id="cartodb-spatial-count-pform">
         <table>
           <tr>
-            <td>Select the first layer</td>
+            <td>1.Select the first layer:</td>
             <td>
               <input type="text" id="txt-carto-id" size=35 value="">
             </td>
           </tr>
           <tr>
-            <td>Select the second layer</td>
+            <td>2.Select the second layer:</td>
             <td>
               <input type="text" id="txt-carto-key" size=35 value="">
             </td>
           </tr>
           <tr>
-            <td>Method: first layer </td>
+            <td>3.Select method:</td>
             <td>
+              first layer
               <select id="sel-cartodb-count-method">
               <option value="contain" selected>contain</option>
               <option value="intersect">intersect with</option>
@@ -221,10 +230,19 @@
             second layer.</td>
           </tr>
           <tr>
-            <td>Input the new column name <br/>
-            for storing the counts in first layer:</td>
-            <td>
+            <td>4.Input the new column </td>
+            <td>name for storing the counts in first layer:</td>
+          </tr>
+          <tr>
+            <td></td>
+            <td valign="top">
               <input type="text" id="txt-carto-col-name" size=35 value="">
+            </td>
+          </tr>
+          <tr>
+            <td></td>
+            <td valign="top">
+              <input type="checkbox" id="chk-carto-update-data" checked>Update data (first layer) with new count column
             </td>
           </tr>
         </table>
@@ -917,7 +935,8 @@
 <div id="divPop" class="bubble">This is Popup Div.</div>
 <div id="mapInfo">
   <div class="switch-wrapper"><input type="checkbox" id="switch" value="1" checked></div>
-  <div id="divDownload">
+  <div class="switch-wrapper" id="divCartoBrush"><input type="checkbox" id="switch-cartodb-brushlink" value="1" checked></div>
+  <div id="divDownload" style="margin-top:5px;">
   <span>Downloading data for spatial analysis...</span><br/>
   <span><img src="img/progress-bar.gif"></span>
   </div>

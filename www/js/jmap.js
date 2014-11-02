@@ -304,13 +304,15 @@
   JsonMap.prototype.fitScreen = function(screenWidth, screenHeight,marginLeft, marginTop) {
     // convert raw points to screen coordinators
     var whRatio = this.mapWidth / this.mapHeight,
-        xyRatio = (screenWidth-marginLeft*2) / (screenHeight - marginTop*2),
         offsetX = marginLeft,
         offsetY = marginTop; 
+    var clip_screenWidth = screenWidth - marginLeft * 2;
+    var clip_screenHeight = screenHeight - marginTop * 2;
+    var xyRatio = clip_screenWidth / clip_screenHeight;
     if ( xyRatio >= whRatio ) {
-      offsetX = (screenWidth - screenHeight * whRatio) / 2.0 + marginLeft;
+      offsetX = (clip_screenWidth - clip_screenHeight * whRatio) / 2.0 + marginLeft;
     } else if ( xyRatio < whRatio ) {
-      offsetY = (screenHeight - screenWidth / whRatio) / 2.0 + marginTop;
+      offsetY = (clip_screenHeight - clip_screenWidth / whRatio) / 2.0 + marginTop;
     }
     screenWidth = screenWidth - offsetX * 2;
     screenHeight =  screenHeight - offsetY * 2;

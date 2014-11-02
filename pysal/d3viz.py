@@ -133,6 +133,7 @@ class AnswerMachine(threading.Thread):
                     if CARTODB_API_KEY and CARTODB_DOMAIN:
                         table_names = self.parent.cartodb_get_all_tables()
                     msg = {"command" : "rsp_cartodb_get_all_tables"}
+                    msg["wid"] = wid
                     msg["table_names"] = table_names
                     self.ws.send(json.dumps(msg))
                     
@@ -1331,6 +1332,7 @@ def cartodb_count_pts_in_polys(poly_tbl, pt_tbl, count_col_name):
 
 def cartodb_get_all_tables():
     import requests
+    url = 'https://%s.cartodb.com/api/v1/sql' % CARTODB_DOMAIN
     sql = "SELECT table_name FROM information_schema.tables WHERE table_schema='public'"
     params = { 'api_key': CARTODB_API_KEY, 'q': sql,}
     r = requests.get(url, params=params, verify=False)

@@ -23,7 +23,7 @@ $(document).ready(function() {
   winID = getParameterByName("wid");
   
   // create Leaflet map 
-  lmap = new L.Map('map', {center: [43, -98], zoom: 1});
+  lmap = new L.Map('map');
 
   L.tileLayer('https://{s}.tiles.mapbox.com/v3/{id}/{z}/{x}/{y}.png', {
     maxZoom: 18,
@@ -120,7 +120,7 @@ $(document).ready(function() {
       setTimeout(function(){ $(divToPop).fadeOut('slow');}, 2000);
     });
   };
-  $('#divPop,#divDownload, #img-id-chk, #img-id-spin, #img-id-nochk, .dlg-loading, #progress_bar_openfile, #progress_bar_cartodb,#progress_bar_road,#progress_bar_spacetime').hide();
+  $('#divPop,#divDownload, #img-id-chk, #img-id-spin, #img-id-nochk, .dlg-loading, #progress_bar_openfile, #progress_bar_cartodb,#progress_bar_road,#progress_bar_spacetime,#divCartoBrush').hide();
   
   $( "#dlg-msg" ).dialog({
     dialogClass: "dialogWithDropShadow",
@@ -167,6 +167,7 @@ $(document).ready(function() {
             carto_key = $('#txt-carto-key').val();
             table_name = $('#txt-carto-table').val();
             //show cartodb layer and downloading iconp
+            lmap.setView(new L.LatLng(43, -98), 1);
             if (carto_layer) lmap.removeLayer(carto_layer);
             carto_layer = cartodb.createLayer(lmap, {
               user_name: carto_uid, 
@@ -184,16 +185,16 @@ $(document).ready(function() {
               });
             });
             //lmap.addLayer(carto_layer);
+            $('#divDownload').show();
             viz.CartoDownloadTable(carto_uid, carto_key, table_name, function(msg){
-              // when done remove cartodb layer
-              lmap.removeLayer(carto_layer);
-              carto_layer = undefined;
               gHasProj = true;
               var ip = msg.projection; 
               prj = proj4(ip, proj4.defs('WGS84'));
               uuid = msg.uuid;  
               var noForeground = true;
               showLeafletMap(uuid, noForeground);
+              $('#divCartoBrush').show();
+              $('#divDownload').toggle();
             });
           } else if (sel_id == 2) {
             var socrata_url = $('#txt-socrata-url').val();
@@ -227,8 +228,10 @@ $(document).ready(function() {
   // switch leaflet
   var showLeafletMap = function(uuid, noForeground) {
     if (uuid && viz) {
-      foreground = $('#foreground').attr("id", uuid); 
-      viz.canvas = foreground;
+      if (foreground == undefined) {
+        foreground = $('#foreground').attr("id", uuid); 
+        viz.canvas = foreground;
+      }
       gShowLeaflet = true;
       if ( gHasProj && prj == undefined) {
         // wait for reading *.prj file 
@@ -244,8 +247,10 @@ $(document).ready(function() {
   };
   var showPlainMap = function(uuid) {
     if (uuid && viz) {
-      foreground = $('#foreground').attr("id", uuid); 
-      viz.canvas = foreground;
+      if (foreground == undefined) {
+        foreground = $('#foreground').attr("id", uuid); 
+        viz.canvas = foreground;
+      }
       gShowLeaflet = false;
       viz.ShowMap(uuid,OnMapShown); 
     }
@@ -262,6 +267,16 @@ $(document).ready(function() {
     off_callback: function() {
       gShowLeaflet = false;
       showPlainMap(uuid);
+    },
+  });
+  
+  $("#switch-cartodb-brushlink").switchButton({
+    checked: false,
+    on_label: 'ON',
+    off_label: 'Brush&Link CartoDB Maps? OFF',
+    on_callback: function() {
+    },
+    off_callback: function() {
     },
   });
    //////////////////////////////////////////////////////////////
@@ -389,9 +404,46 @@ $(document).ready(function() {
   //////////////////////////////////////////////////////////////
   //  CartoDB
   //////////////////////////////////////////////////////////////
+  $('#btn-cartodb-get-all-tables').click(function(){
+    if (viz) {
+      $('#progress_bar_cartodb').show();
+      var uid = $('#txt-carto-setup-id').val();
+      var key = $('#txt-carto-setup-key').val();
+      viz.CartoGetAllTables(uid, key, function(msg) {
+        $('#progress_bar_cartodb').hide();
+        var table_names = msg['table_names'];
+        $('#sel-carto-table-download').find('option').remove().end();
+        for (var i in table_names) {
+          var table_name = table_names[i];
+          $('#sel-carto-table-download')
+            .append($('<option>', {value: table_name})
+            .text(table_name));
+        }
+      });
+    }   
+  });
+  $('#btn-file-cartodb-get-all-tables').click(function(){
+    if (viz) {
+      $('#progress_bar_openfile').show();
+      var uid = $('#txt-carto-id').val();
+      var key = $('#txt-carto-key').val();
+      viz.CartoGetAllTables(uid, key, function(msg) {
+        $('#progress_bar_openfile').hide();
+        var table_names = msg['table_names'];
+        var carto_sel_ctrls = ['#sel-carto-table-download', '#sel-file-carto-tables'];
+        $.each(carto_sel_ctrls, function(i, sel) {
+          $(sel).find('option').remove().end();
+          for (var i in table_names) {
+            var table_name = table_names[i];
+            $(sel).append($('<option>', {value: table_name}).text(table_name));
+          }
+        });
+      });
+    }   
+  });
   $('#tabs-dlg-cartodb').tabs();
   $( "#dialog-cartodb" ).dialog({
-    height: 380,
+    height: 450,
     width: 480,
     autoOpen: false,
     modal: false,
@@ -401,8 +453,8 @@ $(document).ready(function() {
         text: "OK",
         click: function() {
           var sel_id = $("#tabs-dlg-cartodb").tabs('option','active');
-          if (sel_id == 1) {
-            // cartodb: download map from cartodb
+          if (sel_id == 0) {
+            //
           }
           $( this ).dialog( "close" );
         },
