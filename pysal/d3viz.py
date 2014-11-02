@@ -160,6 +160,28 @@ class AnswerMachine(threading.Thread):
                     print "send back download cartodb"
                     self.ws.send(json.dumps(msg))
                     
+                elif command == "cartodb_upload_table":
+                    wid = msg["wid"]
+                    uid = msg['uid'] if 'uid' in msg else CARTODB_DOMAIN 
+                    key = msg['key'] if 'key' in msg else CARTODB_API_KEY
+                    uuid = msg['uuid'] 
+                    carto_table_name = ""
+                    shp = R_SHP_DICT[uuid]["shp"]
+                    if uid and key:
+                        CARTODB_DOMAIN = uid
+                        CARTODB_API_KEY = key
+                    if CARTODB_API_KEY and CARTODB_DOMAIN:
+                        print "start downloading table"
+                        carto_table_name = self.parent.cartodb_upload(shp, overwrite=True)
+                    msg = {"command" : "rsp_cartodb_upload_table"}
+                    msg['wid'] = wid
+                    msg["uuid"] = uuid
+                    msg["carto_table_name"] = carto_table_name
+                    prj_path = shp_path[:-3]+"prj" 
+                    projection = open(prj_path,'r').read().strip()
+                    msg["projection"] = projection
+                    print "send back download cartodb"
+                    self.ws.send(json.dumps(msg))
                 elif command == "new_lisa_map":
                     uuid = msg["uuid"]
                     var = msg["var"]
@@ -434,7 +456,7 @@ def getuuid(shp):
     Generate UUID using absolute path of shapefile
     """
     file_path = shp.dataPath
-    file_name = os.path.basename(file_path)
+    file_name = os.path.split(file_path)[-1]
     return md5.md5(file_name).hexdigest()
    
 def getmsguuid():

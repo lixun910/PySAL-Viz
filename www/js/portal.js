@@ -279,6 +279,18 @@ $(document).ready(function() {
     off_callback: function() {
     },
   });
+  var local_map_names_sel = ['#sel-carto-table-upload','#sel-road-seg','#sel-road-snap-point-layer','#sel-road-snap-road-layer','#sel-road-w-layer','#sel-spacetime-space'];
+  var UpdateLocalMapSel = function(){
+    if (viz) {
+      $.each(local_map_names_sel, function(i,sel){
+        $(sel).find('option').remove().end();
+        for( var uuid in viz.nameDict) {
+          var name = viz.nameDict[uuid];
+          $(sel).append($('<option>', {value: uuid}).text(name));
+        }
+      });
+    }
+  };
    //////////////////////////////////////////////////////////////
   //  Drag & Drop
   //////////////////////////////////////////////////////////////
@@ -372,6 +384,7 @@ $(document).ready(function() {
           var path = data["path"];
           if ( gAddLayer == false ) { // open new map
             uuid = data["uuid"];
+            viz.nameDict[uuid] = data['filename'];
             if ( gHasProj || gShowLeaflet == true) {
               showLeafletMap(uuid);
             } else {
@@ -379,12 +392,14 @@ $(document).ready(function() {
             }
           } else { // add new layer
             var subUuid = data["uuid"];
+            viz.nameDict[subUuid] = data['filename'];
             if ( gHasProj || gShowLeaflet == true) {
               viz.AddLeafletMap(subUuid, L, lmap, prj);
             } else {
               viz.AddPlainMap(subUuid);
             }
           }
+          UpdateLocalMapSel();
           var msg =  {"command":"new_data", "uuid": data['uuid'],"path":path};
           viz.NewDataFromWeb(msg);
         }
@@ -400,10 +415,10 @@ $(document).ready(function() {
     xhr.send(formData);
     document.getElementById('progress_bar').className = 'loading';
   };
- 
   //////////////////////////////////////////////////////////////
   //  CartoDB
   //////////////////////////////////////////////////////////////
+  var carto_table_sel = ['#sel-carto-table-download', '#sel-file-carto-tables', '#sel-carto-table-count1','#sel-carto-table-count2'];
   $('#btn-cartodb-get-all-tables').click(function(){
     if (viz) {
       $('#progress_bar_cartodb').show();
@@ -412,13 +427,13 @@ $(document).ready(function() {
       viz.CartoGetAllTables(uid, key, function(msg) {
         $('#progress_bar_cartodb').hide();
         var table_names = msg['table_names'];
-        $('#sel-carto-table-download').find('option').remove().end();
-        for (var i in table_names) {
-          var table_name = table_names[i];
-          $('#sel-carto-table-download')
-            .append($('<option>', {value: table_name})
-            .text(table_name));
-        }
+        $.each(carto_table_sel, function(i, sel) {
+          $(sel).find('option').remove().end();
+          for (var i in table_names) {
+            var table_name = table_names[i];
+            $(sel).append($('<option>', {value: table_name}).text(table_name));
+          }
+        });
       });
     }   
   });
@@ -430,8 +445,7 @@ $(document).ready(function() {
       viz.CartoGetAllTables(uid, key, function(msg) {
         $('#progress_bar_openfile').hide();
         var table_names = msg['table_names'];
-        var carto_sel_ctrls = ['#sel-carto-table-download', '#sel-file-carto-tables'];
-        $.each(carto_sel_ctrls, function(i, sel) {
+        $.each(carto_table_sel, function(i, sel) {
           $(sel).find('option').remove().end();
           for (var i in table_names) {
             var table_name = table_names[i];
@@ -454,7 +468,14 @@ $(document).ready(function() {
         click: function() {
           var sel_id = $("#tabs-dlg-cartodb").tabs('option','active');
           if (sel_id == 0) {
-            //
+            // setup
+          } else if (sel_id == 1) {
+            // download
+          } else if (sel_id == 2) {
+            // upload: using uuid send command to call cartodb_upload()
+            
+          } else if (sel_id == 3) {
+            // count
           }
           $( this ).dialog( "close" );
         },

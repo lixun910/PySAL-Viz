@@ -18,9 +18,8 @@ if 'userfile' in form.keys():
       
    shp_path = None
    json_path = None
-   
+   shp_type = 0 
    for f in fileitems:
-      fn = os.path.basename(f.filename)
       if f.file:
          fn = os.path.basename(f.filename)
          ext = fn.split(".")[-1]
@@ -41,6 +40,8 @@ if 'userfile' in form.keys():
          buffer = []
          reader = shapefile.Reader(shp_path)
          fields = reader.fields[1:]
+         shp_type = reader.shapeType
+         
          field_names = [field[0] for field in fields]
          for i, sr in enumerate(reader.shapeRecords()):
             atr = dict(zip(field_names, sr.record))
@@ -51,9 +52,11 @@ if 'userfile' in form.keys():
          geojson.write(json.dumps({"type": "FeatureCollection","features": buffer}, ensure_ascii=False))
          geojson.close()
    
+      shpFileName = os.path.split(shp_path)[-1]
       message = {} 
       message["uuid"]  = uuid
       message["path"] = shp_path
+      message["filename"] = shpFileName
       message = json.dumps(message)  
         
    elif json_path:

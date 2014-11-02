@@ -12,11 +12,11 @@
     this.version = "0.1";
     this.mapDict = {}; // uuid:GeoVizMap
     this.dataDict = {};
-    this.popupWins = {}; //messageID:window
-    this.msgDict = {};
+    this.nameDict = {}; // uuid:name
     this.prj = undefined;
     this.canvas = canvas;
     this.container = container;
+    
     // carto db
     this.userid = undefined;
     this.key = undefined;
@@ -92,7 +92,6 @@
       "_blank",
       "width=600, height=500, scrollbars=yes"
     );
-    this.popupWins[msg.id] = win;
   };
  
    
@@ -232,7 +231,6 @@
       "_blank",
       "width=900, height=700, scrollbars=yes"
     );
-    this.popupWins[msg.id] = w;
   };
   
   /**
@@ -244,7 +242,6 @@
       "_blank",
       "width=900, height=700, scrollbars=yes"
     );
-    this.popupWins[msg.id] = w;
   };
 
   /**
@@ -256,16 +253,12 @@
       "_blank",
       "width=900, height=700, scrollbars=yes"
     );
-    this.popupWins[msg.id] = w;
   };
   
   /**
    * Close all PopUp windows
    */
   d3viz.prototype.CloseAllPopUps = function() {
-    for (var i in this.popupWins ) {
-      this.popupWins[i].close();
-    }
   };
  
   /**

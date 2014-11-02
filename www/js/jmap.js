@@ -480,7 +480,7 @@
     this.map = map;
     this.shpType = this.map.shpType; 
     // multi-layer support 
-    this.layers = {};
+    this.layers = {}; // uuid: JsonMap/LeafletMap
     this.layerColors = ['#FFCC33','#CC6699','#95CAE4','#993333','#279B61'];
     _self = this;
     
