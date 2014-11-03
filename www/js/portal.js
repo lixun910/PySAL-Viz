@@ -11,7 +11,7 @@ function ShowMsgBox(title, content) {
 var viz, 
     cartolx, carto_uid, carto_key, carto_layer,
     foreground, lmap, map, uuid, winID, 
-    prj,
+    prj, gProjSwitchOn = true,
     gHasProj     =false, 
     gShowLeaflet =false, 
     gAddLayer    =false;
@@ -377,7 +377,8 @@ $(document).ready(function() {
       return false;
     } 
     if (!bJson && !gHasProj ) {
-      ShowMsgBox("Info", "The *.prj file is not found. The map will not be shown using Leaflet."); 
+      gProjSwitchOn = false;
+      ShowMsgBox("Info", "The *.prj file is not found. The map will not be shown using Leaflet. You can still use the swtich button to display the map on Leaflet."); 
     }
     $.each(files, function(i, f) {
       if ($.inArray(getSuffix(f.name), ['json','geojson','shp','shx','dbf', 'prj'] ) >=0) {
