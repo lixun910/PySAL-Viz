@@ -107,8 +107,64 @@ $(document).ready(function() {
     
   viz.RequestParameters(winID, function(params) {
 
+    ip = params["projection"];
+    type = params["type"];
+    bins = params["bins"];
+    id_array = params["id_array"];
+    title = params["title"];
+    k = id_array.length;
+    colors = colorbrewer.YlGn[k];
+    
+    if (type == "lisa") {
+      colors = colorbrewer.Lisa[k];
+    }
+    
+    colorTheme = {};
+    for ( var i=0, n=id_array.length; i<n; i++ ) {
+      colorTheme[colors[i]] = id_array[i];
+    }
+ 
+    var checkSwitch = false;
+    if (ip != undefined && ip.length > 0) {
+      prj = proj4(ip, proj4.defs('WGS84'));
+      checkSwitch = true; 
+      viz.ShowLeafletMap(uuid, L, lmap, prj, {
+	"color_theme": colorTheme, 
+	"hratio": 1,
+	"vratio": 1,
+	"alpha": 0.9,
+      }, function() {
+	$('#loading').remove();
+    
+	map = viz.map;
+	lmap.on('zoomstart', function() {
+	  map.clean();
+	});
+	lmap.on('zoomend', function() {
+	  map.update();
+	});
+	lmap.on('movestart', function(e) {
+	  map.clean();
+	});
+	lmap.on('moveend', function(e) {
+	  var op = e.target.getPixelOrigin();
+	  var np = e.target._getTopLeftPoint();
+	  var offsetX = -np.x + op.x;
+	  var offsetY = -np.y + op.y;
+	  map.update({"offsetX":offsetX, "offsetY":offsetY});
+	});
+	
+	//showInfo(); 
+      });
+    } else {
+      viz.ShowThematicMap(uuid, colorTheme, function(){
+	map = viz.map;
+	//showInfo();
+      });
+    }
+    
     $("#switch").switchButton({
-      checked: false,
+      checked: checkSwitch,
       on_label: 'ON',
       off_label: 'Leaflet Background? OFF',
       on_callback: function() {
@@ -149,61 +205,6 @@ $(document).ready(function() {
         $('#map').hide();
       },
     });
-    ip = params["projection"];
-    type = params["type"];
-    bins = params["bins"];
-    id_array = params["id_array"];
-    title = params["title"];
-    k = id_array.length;
-    colors = colorbrewer.YlGn[k];
-    
-    if (type == "lisa") {
-      colors = colorbrewer.Lisa[k];
-    }
-    
-    colorTheme = {};
-    for ( var i=0, n=id_array.length; i<n; i++ ) {
-      colorTheme[colors[i]] = id_array[i];
-    }
- 
-    if (ip != undefined && ip.length > 0) {
-      prj = proj4(ip, proj4.defs('WGS84'));
-      
-      viz.ShowLeafletMap(uuid, L, lmap, prj, {
-	"color_theme": colorTheme, 
-	"hratio": 1,
-	"vratio": 1,
-	"alpha": 0.9,
-      }, function() {
-	$('#loading').remove();
-    
-	map = viz.map;
-	lmap.on('zoomstart', function() {
-	  map.clean();
-	});
-	lmap.on('zoomend', function() {
-	  map.update();
-	});
-	lmap.on('movestart', function(e) {
-	  map.clean();
-	});
-	lmap.on('moveend', function(e) {
-	  var op = e.target.getPixelOrigin();
-	  var np = e.target._getTopLeftPoint();
-	  var offsetX = -np.x + op.x;
-	  var offsetY = -np.y + op.y;
-	  map.update({"offsetX":offsetX, "offsetY":offsetY});
-	});
-	
-	//showInfo(); 
-      });
-    } else {
-      viz.ShowThematicMap(uuid, colorTheme, function(){
-	map = viz.map;
-	//showInfo();
-      });
-    }
-    
     
     // fill content of color-selector
     $.each(colorbrewer, function(k,v){
