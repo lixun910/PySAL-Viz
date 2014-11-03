@@ -197,3 +197,6 @@ var GetJSON = function(url, successHandler, errorHandler) {
   xhr.send();
 };
 
+String.prototype.endsWith = function(suffix) {
+    return this.indexOf(suffix, this.length - suffix.length) !== -1;
+};

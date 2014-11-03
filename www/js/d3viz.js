@@ -23,10 +23,15 @@
     
     this.RequestParam_callback = undefined;
     this.CreateWeights_callback = undefined;
+    this.LISA_callback = undefined;
     this.RunSpreg_callback = undefined;
     this.callback_GetAllTables = undefined;
     this.callback_DownloadTable = undefined;
+    this.callback_UploadTable = undefined;
+    this.callback_SpatialCount = undefined;
     
+    this.callback_RoadSegment = undefined;
+    this.callback_RoadSnapPoint = undefined;
     self = this;
   };
  
@@ -178,7 +183,9 @@
    */
   d3viz.prototype.ShowThematicMap = function(uuid, colorTheme, callback) {
     var json_url = this.GetJsonUrl(uuid);
-    this.canvas = $('<canvas id="' + uuid + '"></canvas>').appendTo(this.container);
+    if (this.canvas == undefined) {
+      this.canvas = $('<canvas id="' + uuid + '"></canvas>').appendTo(this.container);
+    }
     this.GetJSON( json_url, function(data) {
       if ( typeof data == "string") {
         data = JSON.parse(data);
@@ -332,11 +339,12 @@
     }
   };
   
-  d3viz.prototype.NewLISAMap= function(msg) {
+  d3viz.prototype.NewLISAMap= function(msg, callback) {
     if (this.socket.readyState == 1) {
       this.socket.send(JSON.stringify(msg));
+      this.LISA_callback = callback;
     } else {
-      setTimeout(function(){self.NewLISAMap(msg)}, 10);
+      setTimeout(function(){self.NewLISAMap(msg,callback)}, 10);
     }
   };
   
@@ -391,9 +399,66 @@
       this.socket.send(JSON.stringify(msg));
       this.callback_DownloadTable = successHandler;
     } else {
-      setTimeout(function(){self.CartoDownloadTable(uid, key, successHandler)}, 10);
+      setTimeout(function(){self.CartoDownloadTable(uid, key, table_name,successHandler)}, 10);
     }
   };
+  
+  d3viz.prototype.CartoUploadTable = function(uid, key, uuid, successHandler) {
+    var msg = {"command":"cartodb_upload_table", "wid":this.id};
+    if (uid) msg["uid"] = uid;
+    if (key) msg["key"] = key;
+    if (uuid) msg["uuid"] = uuid;
+    if (this.socket && this.socket.readyState == 1) {
+      this.socket.send(JSON.stringify(msg));
+      this.callback_UploadTable = successHandler;
+    } else {
+      setTimeout(function(){self.CartoUploadTable(uid, key, uuid, successHandler)}, 10);
+    }
+  };  
+  
+  d3viz.prototype.CartoSpatialCount = function(uid, key, first_layer, second_layer, count_col_name, successHandler) {
+    var msg = {"command":"cartodb_spatial_count", "wid":this.id};
+    if (uid) msg["uid"] = uid;
+    if (key) msg["key"] = key;
+    msg["firstlayer"] = first_layer;
+    msg["secondlayer"] = second_layer;
+    msg["columnname"] = count_col_name;
+    if (this.socket && this.socket.readyState == 1) {
+      this.socket.send(JSON.stringify(msg));
+      this.callback_SpatialCount = successHandler;
+    } else {
+      setTimeout(function(){self.CartoSpatialCount(uid, key, first_layer, second_layer, count_col_name, successHandler)}, 10);
+    }
+  };  
+  
+  d3viz.prototype.RoadSegment = function(uid, key, uuid, length, ofn, successHandler) {
+    var msg = {"command":"road_segment", "wid":this.id};
+    if (uid) msg["uid"] = uid;
+    if (key) msg["key"] = key;
+    msg["uuid"] = uuid;
+    msg["length"] = length;
+    msg["ofn"] = ofn;
+    if (this.socket && this.socket.readyState == 1) {
+      this.socket.send(JSON.stringify(msg));
+      this.callback_RoadSegment = successHandler;
+    } else {
+      setTimeout(function(){self.RoadSegment(uid, key, uuid, length, ofn, successHandler)}, 10);
+    }
+  };  
+  
+  d3viz.prototype.RoadSnapPoint = function(uid, key, point_uuid, road_uuid, successHandler) {
+    var msg = {"command":"road_snap_point", "wid":this.id};
+    if (uid) msg["uid"] = uid;
+    if (key) msg["key"] = key;
+    msg["pointuuid"] = point_uuid;
+    msg["roaduuid"] = road_uuid;
+    if (this.socket && this.socket.readyState == 1) {
+      this.socket.send(JSON.stringify(msg));
+      this.callback_RoadSnapPoint = successHandler;
+    } else {
+      setTimeout(function(){self.RoadSnapPoint(uid, key, point_uuid, road_uuid, successHandler)}, 10);
+    }
+  };  
   /**
    * Setup WebSocket Server Communications
   PySal can send a command "add_layer:{uri:abc.shp}" to ws server.
@@ -428,6 +493,9 @@
           } else if ( command == "rsp_spatial_regression" && self.id == winID) {
             self.RunSpreg_callback(msg);
             
+          } else if ( command == "rsp_new_lisa_map" && self.id == winID) {
+            self.LISA_callback(msg);
+            
           } else if ( command == "select" ) {
             self.SelectOnMap(msg); //
             
@@ -435,6 +503,14 @@
             self.callback_GetAllTables(msg);
           } else if ( command == "rsp_cartodb_download_table" && self.id == winID) {
             self.callback_DownloadTable(msg);
+          } else if ( command == "rsp_cartodb_upload_table" && self.id == winID) {
+            self.callback_UploadTable(msg);
+          } else if ( command == "rsp_cartodb_spatial_count" && self.id == winID) {
+            self.callback_SpatialCount(msg);
+          } else if ( command == "rsp_road_segment" && self.id == winID) {
+            self.callback_RoadSegment(msg);
+          } else if ( command == "rsp_road_snap_point" && self.id == winID) {
+            self.callback_RoadSnapPoint(msg);
           } 
         } catch (err) {
           console.error("Parsing server msg error:", msg, err);            

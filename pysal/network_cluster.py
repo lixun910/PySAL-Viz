@@ -6,6 +6,8 @@ import random
 import shapefile
 import numpy as np 
 from scipy.spatial import ckdtree
+import os
+import shutil
     
 def get_len(S, E):
     dy = E[1] - S[1]
@@ -123,7 +125,8 @@ def lineIntersect(la, lb):
 
 
 class NetworkCluster:
-    def __init__(self, networkJsonFile):
+    def __init__(self, networkJsonFile, shpPath):
+        self.shp_path = shpPath;
         self.network_data = self.ReadJsonNetwork(networkJsonFile)
         """
         {
@@ -179,7 +182,8 @@ class NetworkCluster:
                         network_dict[osm_id] = [l]
                     else:
                         network_dict[osm_id].append(l)
-                    seg_dict[l] = [osm_id, prop["oneway"], prop["bridge"],0]
+                    #seg_dict[l] = [osm_id, prop["oneway"], prop["bridge"],0]
+                    seg_dict[l] = [osm_id, 0]
                 elif isinstance(coords[0][0][0], float):
                     for c in coords:
                         l = tuple(tuple(i) for i in c)
@@ -187,7 +191,8 @@ class NetworkCluster:
                             network_dict[osm_id] = [l]
                         else:
                             network_dict[osm_id].append(l)
-                        seg_dict[l] = [osm_id, prop["oneway"], prop["bridge"],0]
+                        #seg_dict[l] = [osm_id, prop["oneway"], prop["bridge"],0]
+                        seg_dict[l] = [osm_id, 0]
             else:
                 # segment first
                 if isinstance(coords[0][0], float):
@@ -257,7 +262,8 @@ class NetworkCluster:
                             network_dict[osm_id] = [l]
                         else:
                             network_dict[osm_id].append(l)
-                        seg_dict[l] = [osm_id, prop["oneway"], prop["bridge"],0]
+                        #seg_dict[l] = [osm_id, prop["oneway"], prop["bridge"],0]
+                        seg_dict[l] = [osm_id, 0]
         self.segment_dict = seg_dict
         self.segment_lines = seg_dict.keys()
         self.search_dict = self.build_dict()
@@ -402,13 +408,15 @@ class NetworkCluster:
         gal.write(w)
         gal.close()
         
-    def ExportCountsToShp(self, shpFileName):
+    def ExportCountsToShp(self, shpFileName, counts=True):
         seg_dict = self.segment_dict
         seg_lines = self.segment_lines
         
         shapewriter = shapefile.Writer()
         shapewriter.field("id", "N")
-        shapewriter.field("cnt","N") 
+        shapewriter.field("osm_id", "N")
+        if counts:
+            shapewriter.field("cnt","N") 
         
         for i,l in enumerate(seg_lines):
             record = shapefile._Shape()
@@ -416,8 +424,17 @@ class NetworkCluster:
             record.points = l
             record.parts = [0]
             shapewriter._shapes.append(record)
-            shapewriter.record(id=i, cnt=seg_dict[l][-1])
+            if counts:
+                shapewriter.record(id=i, osm_id=i, cnt=seg_dict[l][-1])
+            else:
+                shapewriter.record(id=i, osm_id=i)
         shapewriter.save(shpFileName) 
+        
+        ori_file = self.shp_path[:-3] + 'prj'
+        if os.path.exists(ori_file):
+            new_file = shpFileName[:-3] + 'prj'
+            if ori_file != new_file:
+                shutil.copy(ori_file, new_file)
   
 
 def GetJsonPoints(pointsJsonFile, encoding=None):

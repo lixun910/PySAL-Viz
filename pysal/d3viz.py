@@ -8,7 +8,7 @@ import shapefile
 import zipfile
 import urllib2, urllib
 from rdp import rdp
-from network_cluster import NetworkCluster
+from network_cluster import NetworkCluster, GetJsonPoints
 from time import sleep
 
 __author__='Xun Li <xunli@asu.edu>'
@@ -111,7 +111,7 @@ class AnswerMachine(threading.Thread):
                         dbf_path = path[:-3] + "dbf"
                         shp = pysal.open(path,'r')
                         dbf = pysal.open(dbf_path, 'r')
-                        self.parent.shp2json(shp) 
+                        self.parent.shp2json(shp, rebuild=True) 
                 elif command == "request_params":
                     wid = msg["wid"]
                     params = WIN_DICT[wid]
@@ -131,10 +131,10 @@ class AnswerMachine(threading.Thread):
                         CARTODB_DOMAIN = uid
                         CARTODB_API_KEY = key
                     if CARTODB_API_KEY and CARTODB_DOMAIN:
-                        table_names = self.parent.cartodb_get_all_tables()
+                        tables = self.parent.cartodb_get_all_tables()
                     msg = {"command" : "rsp_cartodb_get_all_tables"}
                     msg["wid"] = wid
-                    msg["table_names"] = table_names
+                    msg["tables"] = tables # table_name:'Point'|Line|Polygon
                     self.ws.send(json.dumps(msg))
                     
                 elif command == "cartodb_download_table":
@@ -154,6 +154,7 @@ class AnswerMachine(threading.Thread):
                     msg = {"command" : "rsp_cartodb_download_table"}
                     msg['wid'] = wid
                     msg["uuid"] = uuid
+                    msg["name"] = os.path.basename(shp_path).split(".")[0]
                     prj_path = shp_path[:-3]+"prj" 
                     projection = open(prj_path,'r').read().strip()
                     msg["projection"] = projection
@@ -166,23 +167,114 @@ class AnswerMachine(threading.Thread):
                     key = msg['key'] if 'key' in msg else CARTODB_API_KEY
                     uuid = msg['uuid'] 
                     carto_table_name = ""
-                    shp = R_SHP_DICT[uuid]["shp"]
                     if uid and key:
                         CARTODB_DOMAIN = uid
                         CARTODB_API_KEY = key
                     if CARTODB_API_KEY and CARTODB_DOMAIN:
-                        print "start downloading table"
+                        print "start uploading table"
+                        shp = R_SHP_DICT[uuid]["shp"]
                         carto_table_name = self.parent.cartodb_upload(shp, overwrite=True)
                     msg = {"command" : "rsp_cartodb_upload_table"}
                     msg['wid'] = wid
                     msg["uuid"] = uuid
-                    msg["carto_table_name"] = carto_table_name
-                    prj_path = shp_path[:-3]+"prj" 
-                    projection = open(prj_path,'r').read().strip()
-                    msg["projection"] = projection
-                    print "send back download cartodb"
+                    msg["new_table_name"] = carto_table_name
+                    print "send back upload cartodb"
                     self.ws.send(json.dumps(msg))
+                    
+                elif command == "cartodb_spatial_count":
+                    wid = msg["wid"]
+                    uid = msg['uid'] if 'uid' in msg else CARTODB_DOMAIN 
+                    key = msg['key'] if 'key' in msg else CARTODB_API_KEY
+                    first_layer = msg['firstlayer'] 
+                    second_layer = msg['secondlayer'] 
+                    count_col_name = msg['columnname'] 
+                    if uid and key:
+                        CARTODB_DOMAIN = uid
+                        CARTODB_API_KEY = key
+                    rtn = False
+                    if CARTODB_API_KEY and CARTODB_DOMAIN:
+                        print "start spatial count"
+                        rtn=cartodb_count_pts_in_polys(first_layer, second_layer, count_col_name)
+                    msg = {"command" : "rsp_cartodb_spatial_count"}
+                    msg['wid'] = wid
+                    msg['result'] = rtn
+                    print "send back cartodb spatial count"
+                    self.ws.send(json.dumps(msg))
+                    
+                elif command == "road_segment":
+                    wid = msg["wid"]
+                    uid = msg['uid'] if 'uid' in msg else CARTODB_DOMAIN 
+                    key = msg['key'] if 'key' in msg else CARTODB_API_KEY
+                    uuid = msg['uuid'] 
+                    length = msg['length'] 
+                    ofn = msg['ofn'] 
+                    if uid and key:
+                        CARTODB_DOMAIN = uid
+                        CARTODB_API_KEY = key
+                    if CARTODB_API_KEY and CARTODB_DOMAIN:
+                        print "start road segmentation"
+                        shp = R_SHP_DICT[uuid]["shp"]
+                        shpFileName = shp.dataPath
+                        prefix = os.path.split(shpFileName)[0]
+                        if ofn.endswith("shp"):
+                            ofn = os.path.join(prefix, ofn)
+                        else:
+                            ofn = os.path.join(prefix, ofn + ".shp")
+                        if 'network' not in R_SHP_DICT[uuid]:
+                            jsonPath = os.path.join(prefix, uuid + ".json")
+                            net = NetworkCluster(jsonPath, shpFileName)
+                            R_SHP_DICT[uuid]['network'] = net
+                        else:
+                            net = R_SHP_DICT[uuid]['network']
+                        net.SegmentNetwork(int(length))
+                        net.ExportCountsToShp(ofn, counts=False)
+                    msg = {"command" : "rsp_road_segment"}
+                    msg['wid'] = wid
+                    msg["uuid"] = uuid
+                    msg["result"] = True
+                    print "send back road segmentation"
+                    self.ws.send(json.dumps(msg))
+                    
+                elif command == "road_snap_point":
+                    wid = msg["wid"]
+                    uid = msg['uid'] if 'uid' in msg else CARTODB_DOMAIN 
+                    key = msg['key'] if 'key' in msg else CARTODB_API_KEY
+                    point_uuid = msg['pointuuid'] 
+                    road_uuid = msg['roaduuid'] 
+                    if uid and key:
+                        CARTODB_DOMAIN = uid
+                        CARTODB_API_KEY = key
+                    if CARTODB_API_KEY and CARTODB_DOMAIN:
+                        print "start road snapping point"
+                        road_shp = R_SHP_DICT[road_uuid]["shp"]
+                        road_shpFileName = road_shp.dataPath
+                        prefix, shpName = os.path.split(road_shpFileName)
+                        ofn = road_shpFileName
+                        
+                        if 'network' not in R_SHP_DICT[road_uuid]:
+                            road_jsonPath = os.path.join(prefix, road_uuid + ".json")
+                            net = NetworkCluster(road_jsonPath, road_shpFileName)
+                            R_SHP_DICT[road_uuid]['network'] = net
+                        else:
+                            net = R_SHP_DICT[road_uuid]['network']
+                        net.SegmentNetwork(sys.maxint)
+                        
+                        point_shp = R_SHP_DICT[point_uuid]["shp"]
+                        point_jsonPath = os.path.join(prefix, point_uuid + ".json")
+                        points = GetJsonPoints(point_jsonPath)
+                        
+                        net.SnapPointsToNetwork(points)
+                        net.ExportCountsToShp(ofn)
+                    msg = {"command" : "rsp_road_snap_point"}
+                    msg['wid'] = wid
+                    msg["uuid"] = uuid
+                    msg["name"] = shpName[:-4]
+                    msg["result"] = True
+                    print "send back road snapping point"
+                    self.ws.send(json.dumps(msg))
+                    
                 elif command == "new_lisa_map":
+                    wid = msg["wid"]
                     uuid = msg["uuid"]
                     var = msg["var"]
                     w_name = msg["w_name"]
@@ -192,6 +284,14 @@ class AnswerMachine(threading.Thread):
                     y = np.array(dbf.by_col[var])
                     lm = pysal.Moran_Local(y, w)
                     self.parent.lisa_map(shp, var, lm)
+                    
+                    msg = {"command" : "rsp_new_lisa_map"}
+                    msg['wid'] = wid
+                    msg["uuid"] = uuid
+                    msg["result"] = True
+                    print "send back LISA"
+                    self.ws.send(json.dumps(msg))
+                    
                 elif command == "new_moran_scatter_plot":
                     uuid = msg["uuid"]
                     var = msg["var"]
@@ -456,7 +556,7 @@ def getuuid(shp):
     Generate UUID using absolute path of shapefile
     """
     file_path = shp.dataPath
-    file_name = os.path.split(file_path)[-1]
+    file_name = os.path.basename(file_path).split(".")[0]
     return md5.md5(file_name).hexdigest()
    
 def getmsguuid():
@@ -481,11 +581,17 @@ def shp2json(shp, rebuild=False, uuid=None):
     
     global R_SHP_DICT
     if uuid not in R_SHP_DICT or rebuild == True:
-        R_SHP_DICT[uuid] = {"shp":None, "dbf":None,"json":None, "shp_path":""}
+        R_SHP_DICT[uuid] = {"shp":None, "dbf":None,"json":None, "shp_path":"","prj":""}
         dbf = pysal.open(shp.dataPath[:-3]+"dbf") 
         R_SHP_DICT[uuid]["shp"] = shp
         R_SHP_DICT[uuid]["dbf"] = dbf
         R_SHP_DICT[uuid]["shp_path"] = shp.dataPath
+        prj_path = shp.dataPath[:-3]+"prj" 
+        try:
+            projection = open(prj_path,'r').read().strip()
+            R_SHP_DICT[uuid]["prj"] = projection
+        except:
+            pass
     
     print "creating geojson ..."
     current_path = os.path.realpath(__file__)    
@@ -698,9 +804,11 @@ def choropleth_map(shp, var, k, method="quantile", basemap="leaflet", uuid=None)
             id_array.append([j for j,v in enumerate(y) \
                              if bins[i-1] < v <= upper])
             
+    projection = R_SHP_DICT[uuid]['prj']
     wid = getmsguuid()
     WIN_DICT[wid] = {
         "uuid":  uuid,
+        "projection": projection,
         "type": method,
         "title": "%s map for variable [%s], k=%d" %(method, var, len(id_array)),
         "bins": bins if isinstance(bins, list) else bins.tolist(),
@@ -966,7 +1074,8 @@ def cartodb_get_data(table_name, fields=[],loc=None,file_name=None):
         if filename.startswith("cartodb-query"):
             oldname = os.path.join(loc, filename)
             newname = os.path.join(loc, table_name + filename[-4:])
-            os.rename(oldname, newname)
+            #os.rename(oldname, newname)
+            shutil.copy(oldname, newname)
     return os.path.join(loc, table_name + ".shp")
 
 def cartodb_get_mapid():
@@ -1060,6 +1169,7 @@ def cartodb_drop_table(table_name):
     }
     r = requests.get(url, params=params, verify=False)
     content = r.json()    
+    print "Drop table " + table_name + "done:" + json.dumps(content)
    
 def cartodb_lisa(local_moran, new_lisa_table, cartodb_ids=None):
     """
@@ -1218,11 +1328,12 @@ def cartodb_show_lisa_map(shp, lisa_table, uuid=None, layers=[]):
    
 def cartodb_table_exists(shp):
     import requests
-    uuid = getuuid(shp)
-    if uuid[0].isdigit():
-        uuid = "table_" + uuid
+    file_path = shp.dataPath
+    table_name = os.path.basename(file_path).split(".")[0]
+    if table_name[0].isdigit():
+        table_name = "table_" + table_name
         
-    table_names = [uuid]
+    table_names = [table_name]
     for tbl_name  in table_names:
         sql = 'SELECT count(cartodb_id) FROM %s' % (tbl_name)
         url = 'https://%s.cartodb.com/api/v1/sql' % CARTODB_DOMAIN
@@ -1238,21 +1349,11 @@ def cartodb_table_exists(shp):
     return None
     
 def zipshapefiles(shp):
-    uuid = getuuid(shp)
     shpPath = os.path.abspath(shp.dataPath)
     prefix = os.path.split(shpPath)[0]
     dbfPath = shpPath[:-3] + "dbf"
     shxPath = shpPath[:-3] + "shx"
     prjPath = shpPath[:-3] + "prj"
-    new_shpPath = os.path.join(prefix, uuid + ".shp")
-    new_shxPath = os.path.join(prefix, uuid + ".shx")
-    new_dbfPath = os.path.join(prefix, uuid + ".dbf")
-    new_prjPath = os.path.join(prefix, uuid + ".prj")
-    shutil.copy(shpPath, new_shpPath)
-    shutil.copy(dbfPath, new_dbfPath)
-    shutil.copy(shxPath, new_shxPath)
-    shutil.copy(prjPath,  new_prjPath)
-  
     orig_loc = os.path.split(os.path.realpath(__file__))[0]
     os.chdir(prefix) 
     ziploc = os.path.join(prefix, "upload.zip")
@@ -1266,14 +1367,12 @@ def zipshapefiles(shp):
     except:
         mode = zipfile.ZIP_DEFLATED
     myzip = zipfile.ZipFile("upload.zip",'w', mode) 
-    myzip.write(os.path.split(new_shpPath)[1])
-    myzip.write(os.path.split(new_shxPath)[1])
-    myzip.write(os.path.split(new_dbfPath)[1])
-    myzip.write(os.path.split(new_prjPath)[1])
+    myzip.write(os.path.split(shpPath)[1])
+    myzip.write(os.path.split(shxPath)[1])
+    myzip.write(os.path.split(dbfPath)[1])
+    myzip.write(os.path.split(prjPath)[1])
     myzip.close()
     os.chdir(orig_loc)
-    #for path in [new_shpPath, new_shxPath, new_dbfPath, new_prjPath]: 
-    #    os.remove(path) 
     return ziploc
         
 def cartodb_upload(shp, overwrite=False):
@@ -1350,6 +1449,9 @@ def cartodb_count_pts_in_polys(poly_tbl, pt_tbl, count_col_name):
     req = urllib2.Request(url, urllib.urlencode(params))
     response = urllib2.urlopen(req)
     content = response.read()
+    if "error" in content:
+        return False
+    return True
     
 
 def cartodb_get_all_tables():
@@ -1368,7 +1470,26 @@ def cartodb_get_all_tables():
             table_name = row["table_name"] 
             if table_name not in ["raster_columns","raster_overviews", "spatial_ref_sys","geometry_columns","geography_columns"]:
                 table_names.append(table_name)
-    return table_names
+    result = {}
+    for tbl in table_names:
+        sql = "SELECT ST_GeometryType(the_geom) FROM %s LIMIT 1" % tbl
+        params = { 'api_key': CARTODB_API_KEY, 'q': sql,}
+        r = requests.get(url, params=params, verify=False)
+        content = r.json()
+        if "error" not in content:
+            rows = content["rows"]
+            row = rows[0]
+            print row
+            if 'st_geometrytype' in row:
+                geotype = row["st_geometrytype"]
+                if geotype != None:
+                    if geotype.find("Point") > -1 :
+                        result[tbl] = 'Point'
+                    elif geotype.find("Line") > -1:
+                        result[tbl] = 'Line'
+                    elif geotype.find("Poly") > -1:
+                        result[tbl] = "Polygon"
+    return result
                 
 #################################################
 #

@@ -15,6 +15,7 @@
 </style>
 <link rel="stylesheet" href="css/d3viz.css" />
 <link rel="stylesheet" href="css/leaflet.css" />
+<link rel="stylesheet" href="css/jquery.switchButton.css" />
 
 <script src="js/leaflet.js"></script>
 <script src="js/jquery.min.js"></script>
@@ -23,9 +24,13 @@
 <script src="js/jmap.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/d3viz.js"></script>
+<script src="js/proj4-src.js"></script>
+<script src="js/jquery-ui-1.10.4.custom.min.js"></script>
+<script src="js/jquery.switchButton.js"></script>
 <script>
 
-var viz, lmap, map, uuid; 
+var viz, lmap, map, uuid, prj; 
+var ip, type, bins, id_array, title,k,colors, colorTheme={};  
 
 $(document).ready(function() {
   var winID = getParameterByName("wid"),
@@ -52,119 +57,197 @@ $(document).ready(function() {
   viz.SetupWebSocket();
   viz.SetupBrushLink();
   
-  viz.RequestParameters(winID, function(params) {
+  var showInfo = function(){
+    var selector = L.control({position: 'bottomleft'});
+    selector.onAdd = function (map) {
+      var div = L.DomUtil.create('div', 'info');
+      var legend = L.DomUtil.create('div', 'legend');
+      var sel = L.DomUtil.create('select', 'color-selector');
+      var info = L.DomUtil.create('h4', '');
+
+      create_legend($(legend), bins, colors); 
+      
+      // fill content of color-selector
+      $.each(colorbrewer, function(k,v){
+	$(sel)
+	  .append($("<option></option>")
+	    .attr("value", k)
+	    .text(k));
+      });
+     
+      $(div).append($(legend)); 
+      $(div).append($(info)); 
+      if ( type != "lisa") {
+	$(div).append("Select to change color scheme:"); 
+	$(div).append($(sel)); 
+      }
+      return div;
+    };
+    selector.addTo(lmap);
+    
+    
+    // fill content of legend
+    
+    var info = L.control();
+    info.onAdd = function (map) {
+	    this._div = L.DomUtil.create('div', 'info');
+	    this.update();
+	    return this._div;
+    };
+    info.update = function (props) {
+	    this._div.innerHTML = '<h4>'+title+'</h4>';
+    };
+    info.addTo(lmap);
+    
+    if (type == "lisa") {
+      $('#selector').empty();
+    }
+  };
   
-    var type = params["type"];
-    var bins = params["bins"];
-    var id_array = params["id_array"];
-    var title = params["title"];
-    var k = id_array.length;
-    var colors = colorbrewer.YlGn[k];
+    
+  viz.RequestParameters(winID, function(params) {
+
+    $("#switch").switchButton({
+      checked: false,
+      on_label: 'ON',
+      off_label: 'Leaflet Background? OFF',
+      on_callback: function() {
+	prj = proj4(proj4.defs('WGS84'), proj4.defs('WGS84'));
+	
+	viz.ShowLeafletMap(uuid, L, lmap, prj, {
+	  "color_theme": colorTheme, 
+	  "hratio": 1,
+	  "vratio": 1,
+	  "alpha": 0.9,
+	}, function() {
+	  $('#loading').remove();
+      
+	  map = viz.map;
+	  lmap.on('zoomstart', function() {
+	    map.clean();
+	  });
+	  lmap.on('zoomend', function() {
+	    map.update();
+	  });
+	  lmap.on('movestart', function(e) {
+	    map.clean();
+	  });
+	  lmap.on('moveend', function(e) {
+	    var op = e.target.getPixelOrigin();
+	    var np = e.target._getTopLeftPoint();
+	    var offsetX = -np.x + op.x;
+	    var offsetY = -np.y + op.y;
+	    map.update({"offsetX":offsetX, "offsetY":offsetY});
+	  });
+	});
+        $('#map').show();
+      },
+      off_callback: function() {
+	viz.ShowThematicMap(uuid, colorTheme, function(){
+	  map = viz.map;
+	});
+        $('#map').hide();
+      },
+    });
+    ip = params["projection"];
+    type = params["type"];
+    bins = params["bins"];
+    id_array = params["id_array"];
+    title = params["title"];
+    k = id_array.length;
+    colors = colorbrewer.YlGn[k];
     
     if (type == "lisa") {
       colors = colorbrewer.Lisa[k];
     }
     
-    var colorTheme = {};
+    colorTheme = {};
     for ( var i=0, n=id_array.length; i<n; i++ ) {
       colorTheme[colors[i]] = id_array[i];
     }
  
-    viz.ShowLeafletMap(uuid, L, lmap, {
-      "color_theme": colorTheme, 
-      "hratio": 1,
-      "vratio": 1,
-      "alpha": 0.9,
-    }, function() {
-      $('#loading').remove();
-  
-      map = viz.map;
-      lmap.on('zoomstart', function() {
-        map.clean();
-      });
-      lmap.on('zoomend', function() {
-        map.update();
-      });
-      lmap.on('movestart', function(e) {
-        map.clean();
-      });
-      lmap.on('moveend', function(e) {
-        var op = e.target.getPixelOrigin();
-        var np = e.target._getTopLeftPoint();
-        var offsetX = -np.x + op.x;
-        var offsetY = -np.y + op.y;
-        map.update({"offsetX":offsetX, "offsetY":offsetY});
-      });
+    if (ip != undefined && ip.length > 0) {
+      prj = proj4(ip, proj4.defs('WGS84'));
+      
+      viz.ShowLeafletMap(uuid, L, lmap, prj, {
+	"color_theme": colorTheme, 
+	"hratio": 1,
+	"vratio": 1,
+	"alpha": 0.9,
+      }, function() {
+	$('#loading').remove();
     
-      var selector = L.control({position: 'bottomleft'});
-      selector.onAdd = function (map) {
-        var div = L.DomUtil.create('div', 'info');
-        var legend = L.DomUtil.create('div', 'legend');
-	var sel = L.DomUtil.create('select', 'color-selector');
-	var info = L.DomUtil.create('h4', '');
-
-	create_legend($(legend), bins, colors); 
+	map = viz.map;
+	lmap.on('zoomstart', function() {
+	  map.clean();
+	});
+	lmap.on('zoomend', function() {
+	  map.update();
+	});
+	lmap.on('movestart', function(e) {
+	  map.clean();
+	});
+	lmap.on('moveend', function(e) {
+	  var op = e.target.getPixelOrigin();
+	  var np = e.target._getTopLeftPoint();
+	  var offsetX = -np.x + op.x;
+	  var offsetY = -np.y + op.y;
+	  map.update({"offsetX":offsetX, "offsetY":offsetY});
+	});
 	
-        // fill content of color-selector
-        $.each(colorbrewer, function(k,v){
-          $(sel)
-            .append($("<option></option>")
-              .attr("value", k)
-              .text(k));
-        });
-       
-	$(div).append($(legend)); 
-	$(div).append($(info)); 
-	if ( type != "lisa") {
-	  $(div).append("Select to change color scheme:"); 
-	  $(div).append($(sel)); 
-	}
-        return div;
-      };
-      selector.addTo(lmap);
-      
-      
-      $('.color-selector').change(function(){
-        var clr_name = $('.color-selector option:selected').text();
-        colors = colorbrewer[clr_name][k];
-        var colorTheme = {};
-        for ( var i=0, n=id_array.length; i<n; i++ ) {
-          colorTheme[colors[i]] = id_array[i];
-        }
-        map.updateColor(colorTheme);
-        $('.legend').empty();
-        create_legend($('.legend'), bins, colors); 
+	//showInfo(); 
       });
-      
-      // fill content of legend
-      
-      var info = L.control();
-      info.onAdd = function (map) {
-	      this._div = L.DomUtil.create('div', 'info');
-	      this.update();
-	      return this._div;
-      };
-      info.update = function (props) {
-	      this._div.innerHTML = '<h4>'+title+'</h4>';
-      };
-      info.addTo(lmap);
-      
-      if (type == "lisa") {
-        $('#selector').empty();
-      }
-    });
+    } else {
+      viz.ShowThematicMap(uuid, colorTheme, function(){
+	map = viz.map;
+	//showInfo();
+      });
+    }
     
+    
+    // fill content of color-selector
+    $.each(colorbrewer, function(k,v){
+      $('#color-selector')
+	.append($("<option></option>")
+	  .attr("value", k)
+	  .text(k));
+    });
+    // fill content of legend
+    create_legend($('#legend'), bins, colors); 
+    
+    $('#title').empty().text(title);
   });
+  
+	$('#color-selector').change(function(){
+	  var clr_name = $('#color-selector option:selected').text();
+	  colors = colorbrewer[clr_name][k];
+	  colorTheme = {};
+	  for ( var i=0, n=id_array.length; i<n; i++ ) {
+	    colorTheme[colors[i]] = id_array[i];
+	  }
+	  map.updateColor(colorTheme);
+	  $('#legend').empty();
+	  create_legend($('#legend'), bins, colors); 
+	});
 });
 </script>
 <body>
+
+<div id="title" class="info" style="z-index:9999;position:fixed;top:4px;right:0px; background-color:#ccc;font-size:20px;">Title</div>
+<div id="legend" class="info" style="z-index:9999;position:fixed;top:50px;right:0px;">Legend</div>
+<div id="selector" class="info" style="z-index:9999;position:fixed;top:180px;right:0px;">
+  Select to change color scheme: <select id="color-selector"></select>
+</div>
+
+<div style="z-index:9999;position:fixed; top:10px; left:50px;float:left;">
+  <div class="switch-wrapper" style="><input type="checkbox" id="switch" value="1" checked></div>
+</div>
+  
 <div id="map-container" style="position: relative; align:center; border: 0px solid red;height: 100%;position: relative;">
   <div id="map" style="align:center; margin-top:0px;border: 0px solid red;width: 100%;height:100%;">
   </div>
   <canvas id="foreground" style="position: absolute; top: 0; left: 0;width: 100%; height: 100%"></canvas>
 </div>
-
-
 <div id="loading">
      loading....
 </div>

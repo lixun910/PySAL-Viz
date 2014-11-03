@@ -173,6 +173,7 @@
       </form>
     </div>
     <div id="tabs-2">
+      <br><img src="img/carto_download.png"><br><br>
       <form id="cartodb-download-form">
         <table>
           <tr>
@@ -189,6 +190,7 @@
       </form>
     </div>
     <div id="tabs-3">
+      <br><img src="img/carto_upload.png"><br><br>
       <form id="cartodb-upload-form">
         <table>
           <tr>
@@ -277,9 +279,15 @@
             </td>
           </tr>
           <tr>
+            <td>Input a maximum length of segemented road (ft)</td>
+            <td>
+              <input type="text" id="txt-seg-road-length" size=25 value="1000">
+            </td>
+          </tr>
+          <tr>
             <td>Input a file name for saving the segemented roads</td>
             <td>
-              <input type="text" id="txt-carto-key" size=25 value="">
+              <input type="text" id="txt-seg-road-name" size=25 value="">
             </td>
           </tr>
         </table>
@@ -370,6 +378,8 @@
               <option value=""></option>
             </select>
   </p>
+  <br/>
+  <br/>
   <h1 class="ui-widget-header">Operations</h1>
   <p style="text-align: left">
   Select a operation that will apply on aggregated data
@@ -399,11 +409,11 @@
       <table>
       <tr>
         <td width="200"><label for="name">Select a variable:</label></td>
-        <td><select id="sel-lisa-var"></td>
+        <td><select id="sel-st-lisa-var"></td>
       </tr>
       <tr>
         <td width="200"><label for="name">Select weights:</label></td>
-        <td><select id="sel-lisa-w"></td>
+        <td><select id="sel-st-lisa-w"></td>
       </tr>
      </table> 
     </div>
@@ -430,6 +440,8 @@
     <td><select id="sel-lisa-w"></td>
   </tr>
  </table> 
+  <br/>  <br/>
+  <div id="progress_bar_lisa"><img src="img/progress-bar.gif"></div>
 </div>
 
 <!--

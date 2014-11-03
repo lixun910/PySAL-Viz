@@ -34,7 +34,9 @@ if 'userfile' in form.keys():
 
    if shp_path:      
       # convert to geojson
-      uuid = md5.md5(shp_path).hexdigest()
+      shpFileName = os.path.split(shp_path)[-1]
+      shpFileNameNoExt = os.path.basename(shp_path).split(".")[0]
+      uuid = md5.md5(shpFileNameNoExt).hexdigest()
       json_path = os.path.join(current_path, 'tmp', '%s.json' % uuid)
       if not os.path.exists(json_path):
          buffer = []
@@ -52,7 +54,6 @@ if 'userfile' in form.keys():
          geojson.write(json.dumps({"type": "FeatureCollection","features": buffer}, ensure_ascii=False))
          geojson.close()
    
-      shpFileName = os.path.split(shp_path)[-1]
       message = {} 
       message["uuid"]  = uuid
       message["path"] = shp_path
