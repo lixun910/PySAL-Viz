@@ -505,7 +505,7 @@ $(document).ready(function() {
             });
           } else if (sel_id == 2) {
             // upload: using uuid send command to call cartodb_upload()
-            var upload_uuid = $('#sel-carto-table-upload').find(':selected').text();
+            var upload_uuid = $('#sel-carto-table-upload').find(':selected').val();
             viz.CartoUploadTable(uid, key, upload_uuid, function(msg){
               $('#progress_bar_cartodb').hide();
               var new_table_name = msg["new_table_name"];
