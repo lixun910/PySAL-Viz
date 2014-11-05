@@ -824,7 +824,12 @@ $(document).ready(function() {
       $( this ).removeClass( "ui-state-default" );
     }
   });
-
+  $('#ui-accordion-y_catalog-header-1').click(function() {
+    $('#gmm').prop('disabled', false);
+    $('#gmm').prop('checked', true);
+    $('#ols').prop('checked', false);
+    $('#ols').prop('disabled', true);
+  });
   // model type
   $('input:radio[name=model_type]').click( function() {
     var model_type = $(this).val();
