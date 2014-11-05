@@ -130,11 +130,11 @@ border: 1px solid #aaa;margin: 1px 10px;
   box-shadow: 0 14px 18px rgba(0,0,0,0.5);
 }
 .text-logo {
-  font-size:18pt;float:left;line-height:1.8;color: #fff;
-  margin-right: 5px;
+  font-size:21pt;float:left;line-height:1.8;color: #fff;
+  margin-right: 20px;
 }
 #toolbar {
-  width: 98%;
+  width: 95%;
   height: 100px;
   margin-top: 20px;
   margin:0 auto;
