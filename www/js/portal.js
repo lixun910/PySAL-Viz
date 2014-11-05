@@ -484,14 +484,7 @@ $(document).ready(function() {
             // setup
             viz.CartoGetAllTables(uid, key, function(msg) {
               $('#progress_bar_cartodb').hide();
-              var table_names = msg['table_names'];
-              $.each(carto_table_sel, function(i, sel) {
-                $(sel).find('option').remove().end();
-                for (var i in table_names) {
-                  var table_name = table_names[i];
-                  $(sel).append($('<option>', {value: table_name}).text(table_name));
-                }
-              });
+              fill_carto_tables(msg['tables']);
             });
             
           } else if (sel_id == 1) {
