@@ -265,6 +265,9 @@ class AnswerMachine(threading.Thread):
                         
                         net.SnapPointsToNetwork(points)
                         net.ExportCountsToShp(ofn)
+                       
+                    shp = pysal.open(ofn, 'r') 
+                    uuid = self.parent.shp2json(shp,rebuild=True) 
                     msg = {"command" : "rsp_road_snap_point"}
                     msg['wid'] = wid
                     msg["uuid"] = uuid
@@ -470,6 +473,7 @@ class AnswerMachine(threading.Thread):
                         result['command'] = 'rsp_spatial_regression'
                         self.ws.send(json.dumps(result))
             except:
+                print "something wrong."
                 pass
         print "[Answering] exiting..." 
         

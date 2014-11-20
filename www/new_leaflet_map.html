@@ -128,6 +128,8 @@ $(document).ready(function() {
     if (ip != undefined && ip.length > 0) {
       prj = proj4(ip, proj4.defs('WGS84'));
       checkSwitch = true; 
+	}
+	  /*
       viz.ShowLeafletMap(uuid, L, lmap, prj, {
 	"color_theme": colorTheme, 
 	"hratio": 1,
@@ -162,13 +164,13 @@ $(document).ready(function() {
 	//showInfo();
       });
     }
-    
+    */ 
     $("#switch").switchButton({
       checked: checkSwitch,
       on_label: 'ON',
       off_label: 'Leaflet Background? OFF',
       on_callback: function() {
-	prj = proj4(proj4.defs('WGS84'), proj4.defs('WGS84'));
+	//prj = proj4(proj4.defs('WGS84'), proj4.defs('WGS84'));
 	
 	viz.ShowLeafletMap(uuid, L, lmap, prj, {
 	  "color_theme": colorTheme, 
@@ -199,9 +201,9 @@ $(document).ready(function() {
         $('#map').show();
       },
       off_callback: function() {
-	viz.ShowThematicMap(uuid, colorTheme, function(){
-	  map = viz.map;
-	});
+		viz.ShowThematicMap(uuid, colorTheme, function(){
+		  map = viz.map;
+		});
         $('#map').hide();
       },
     });

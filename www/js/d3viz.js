@@ -111,7 +111,7 @@
    * parameters: container -- $() jquery object
    */
   d3viz.prototype.ShowMap = function(uuid, callback) {
-    var json_url = this.GetJsonUrl(uuid);
+    var json_url = this.RandUrl(this.GetJsonUrl(uuid));
     if ( this.canvas == undefined) {
       this.canvas = $('<canvas id="' + uuid + '"></canvas>').appendTo(this.container);
     }
@@ -129,7 +129,7 @@
   };
  
   d3viz.prototype.AddLeafletMap = function(subUuid, L, lmap, prj, callback) {
-    var json_url = this.GetJsonUrl(subUuid);
+    var json_url = this.RandUrl(this.GetJsonUrl(subUuid));
     this.GetJSON( json_url, function(data) {
       if ( typeof data == "string") {
         data = JSON.parse(data);
@@ -144,7 +144,7 @@
   };
   
   d3viz.prototype.AddPlainMap = function(subUuid) {
-    var json_url = this.GetJsonUrl(subUuid);
+    var json_url = this.RandUrl(this.GetJsonUrl(subUuid));
     this.GetJSON( json_url, function(data) {
       if ( typeof data == "string") {
         data = JSON.parse(data);
@@ -182,7 +182,7 @@
    * Create a new thematic map
    */
   d3viz.prototype.ShowThematicMap = function(uuid, colorTheme, callback) {
-    var json_url = this.GetJsonUrl(uuid);
+    var json_url = this.RandUrl(this.GetJsonUrl(uuid));
     if (this.canvas == undefined) {
       this.canvas = $('<canvas id="' + uuid + '"></canvas>').appendTo(this.container);
     }
@@ -213,7 +213,7 @@
    * Create a new Leaftlet map
    */
   d3viz.prototype.ShowLeafletMap = function(uuid, L, lmap, prj, options, callback) {
-    var json_url = this.GetJsonUrl(uuid);
+    var json_url = this.RandUrl(this.GetJsonUrl(uuid));
     //already have canvas as foreground
     //this.canvas = $('<canvas id="' + uuid + '"></canvas>').appendTo(this.container);
     this.GetJSON( json_url, function(data) {

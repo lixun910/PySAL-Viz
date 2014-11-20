@@ -9,7 +9,7 @@ function ShowMsgBox(title, content) {
 }
 
 var viz, 
-    cartolx, carto_uid, carto_key, carto_layer,
+    cartolx, carto_uid, carto_key, carto_layers,
     foreground, lmap, map, uuid, winID, 
     prj, gProjSwitchOn = true,
     gHasProj     =false, 
@@ -194,7 +194,7 @@ $(document).ready(function() {
               sql.getBounds("SELECT * FROM " + table_name).done(function(bounds){
                 lmap.fitBounds(bounds);
               });
-              carto_layer = layer_;
+              carto_layers.push(layer_);
             });
             //lmap.addLayer(carto_layer);
             $('#divDownload').show();
@@ -495,10 +495,10 @@ $(document).ready(function() {
               $('#progress_bar_cartodb').hide();
               var name = msg.name;  
               var uuid = msg.uuid;
-              if (carto_layer) {
-                carto_layer.hide();
-              }
               showLeafletMap(uuid);
+              for (var i in carto_layers) {
+                carto_layers[i].hide();
+              }
               // create a url and download
               $.download('./cgi-bin/download.py','name='+name,'get');
             });
@@ -566,7 +566,7 @@ $(document).ready(function() {
           
           if (sel_id == 0) {
             // segment road
-            var road_uuid = $('#sel-road-seg').find(':selected').text();
+            var road_uuid = $('#sel-road-seg').find(':selected').val();
             var seg_length = $('#txt-seg-road-length').val();
             var output_filename = $('#txt-seg-road-name').val();
             viz.RoadSegment(uid, key, road_uuid, seg_length, output_filename, function(msg){
@@ -580,11 +580,16 @@ $(document).ready(function() {
             });
           } else if (sel_id == 1) {
             // snapping point to road
-            var point_uuid = $('#sel-road-snap-point-layer').find(':selected').text(),
-                road_uuid = $('#sel-road-snap-road-layer').find(':selected').text();
+            var point_uuid = $('#sel-road-snap-point-layer').find(':selected').val(),
+                road_uuid = $('#sel-road-snap-road-layer').find(':selected').val();
             viz.RoadSnapPoint(uid, key, point_uuid, road_uuid, function(msg) {
               $('#progress_bar_road').hide();
               var name = msg.name;
+              var uuid = msg.uuid;
+              showLeafletMap(uuid);
+              for (var i in carto_layers) {
+                carto_layers[i].hide();
+              }
               $.download('./cgi-bin/download.py','name='+name,'get');
             });
           }
