@@ -179,8 +179,8 @@ $(document).ready(function() {
             }
             //show cartodb layer and downloading iconp
             lmap.setView(new L.LatLng(43, -98), 1);
-            if (carto_layer) lmap.removeLayer(carto_layer);
-            carto_layer = cartodb.createLayer(lmap, {
+            //if (carto_layer) lmap.removeLayer(carto_layer);
+            cartodb.createLayer(lmap, {
               user_name: carto_uid, 
               type: 'cartodb',
               sublayers:[{
@@ -194,6 +194,7 @@ $(document).ready(function() {
               sql.getBounds("SELECT * FROM " + table_name).done(function(bounds){
                 lmap.fitBounds(bounds);
               });
+              carto_layer = layer_;
             });
             //lmap.addLayer(carto_layer);
             $('#divDownload').show();
@@ -251,7 +252,7 @@ $(document).ready(function() {
         $('#map').show();
         if (noForeground==undefined) noForeground = false;
         viz.ShowLeafletMap(uuid, L, lmap, prj, {
-          "hratio": 1, "vratio": 1, "alpha": 0.8, "noforeground": noForeground
+          "hratio": 1, "vratio": 1, "alpha": 0.9, "noforeground": noForeground
         }, OnMapShown);
       }
     }
@@ -493,6 +494,11 @@ $(document).ready(function() {
             viz.CartoDownloadTable(uid, key, table_name, function(msg){
               $('#progress_bar_cartodb').hide();
               var name = msg.name;  
+              var uuid = msg.uuid;
+              if (carto_layer) {
+                carto_layer.hide();
+              }
+              showLeafletMap(uuid);
               // create a url and download
               $.download('./cgi-bin/download.py','name='+name,'get');
             });

@@ -150,7 +150,7 @@ class AnswerMachine(threading.Thread):
                         print "start downloading table"
                         shp_path = self.parent.cartodb_get_data(table_name)
                         shp = pysal.open(shp_path,'r')
-                        uuid = self.parent.shp2json(shp) 
+                        uuid = self.parent.shp2json(shp,rebuild=True) 
                     msg = {"command" : "rsp_cartodb_download_table"}
                     msg['wid'] = wid
                     msg["uuid"] = uuid
@@ -1413,7 +1413,7 @@ def cartodb_upload(shp, overwrite=False):
             print d['get_error_text']['what_about']
     return d['table_name']    
     
-def cartodb_count_pts_in_polys(poly_tbl, pt_tbl, count_col_name):
+def cartodb_count_pts_in_polys(pt_tbl, poly_tbl, count_col_name):
     import requests
     sql = 'SELECT count(%s) FROM %s' % (count_col_name, poly_tbl)
     url = 'https://%s.cartodb.com/api/v1/sql' % CARTODB_DOMAIN
@@ -1431,9 +1431,10 @@ def cartodb_count_pts_in_polys(poly_tbl, pt_tbl, count_col_name):
             'api_key': CARTODB_API_KEY,
             'q': sql,
         }
-        req = urllib2.Request(url, urllib.urlencode(params))
-        response = urllib2.urlopen(req)
-        content = response.read()
+        r = requests.get(url, params=params, verify=False)
+        content = r.json()    
+        if 'error' in content:
+            print 'add column faield'
     # call sql api to update
     """
     UPDATE polygon_table SET point_count = (SELECT count(*)
@@ -1446,9 +1447,8 @@ def cartodb_count_pts_in_polys(poly_tbl, pt_tbl, count_col_name):
         'api_key': CARTODB_API_KEY,
         'q': sql,
     }
-    req = urllib2.Request(url, urllib.urlencode(params))
-    response = urllib2.urlopen(req)
-    content = response.read()
+    r = requests.get(url, params=params, verify=False)
+    content = r.json()    
     if "error" in content:
         return False
     return True

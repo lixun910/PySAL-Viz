@@ -9,3 +9,7 @@
 *.zip
 *.prj
 *.geojson
+
+*.wpr
+
+*.wpu
