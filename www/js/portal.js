@@ -1163,8 +1163,8 @@ $(document).ready(function() {
       "Open": function() {
         if (!viz) return;
         $('#progress_bar_lisa').show();
-        var sel_var = $('#sel-lisa-var').val();
-        var sel_w = $('#sel-lisa-w').text();
+        var sel_var = $('#sel-lisa-var').find(':selected').val();
+        var sel_w = $('#sel-lisa-w').find(':selected').text();
         if (!sel_w || sel_w.length == 0) {
           ShowMsgBox("Info", "Please select a weights first. Note: You can create a weights by click the weights creation button");
           return;
@@ -1191,8 +1191,8 @@ $(document).ready(function() {
     buttons: {
       "Open": function() {
         if (!viz) return;
-        var sel_var = $('#sel-moran-var').val();
-        var sel_w = $('#sel-moran-w').text();
+        var sel_var = $('#sel-moran-var').find(':selected').val();
+        var sel_w = $('#sel-moran-w').find(':selected').val();
         if (!sel_w || sel_w.length == 0) {
           ShowMsgBox("Info", "Please select a weights first. Note: You can create a weights by click the weights creation button");
           return;
@@ -1219,8 +1219,8 @@ $(document).ready(function() {
     buttons: {
       "Open": function() {
         if (!viz) return;
-        var sel_x = $('#sel-scatter-x').val();
-        var sel_y = $('#sel-scatter-y').val();
+        var sel_x = $('#sel-scatter-x').find(':selected').val();
+        var sel_y = $('#sel-scatter-y').find(':selected').val();
         var msg = {"command":"new_scatter_plot","wid": winID,"uuid":uuid,
         "var_x": sel_x, "var_y": sel_y};
         viz.NewScatterPlot(msg);
@@ -1243,8 +1243,8 @@ $(document).ready(function() {
     buttons: {
       "Open": function() {
         if (!viz) return;
-        var sel_method = $('#sel-quan-method').val();
-        var sel_var = $('#sel-var').val();
+        var sel_method = $('#sel-quan-method').find(':selected').val();
+        var sel_var = $('#sel-var').find(':selected').val();
         var sel_cat = $('#quan-cate').val();
         var msg = {"command":"new_choropleth_map","wid": winID,"uuid":uuid,
         "method": sel_method, "var": sel_var, "category": sel_cat};
