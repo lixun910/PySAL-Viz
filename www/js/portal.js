@@ -592,6 +592,18 @@ $(document).ready(function() {
               }
               $.download('./cgi-bin/download.py','name='+name,'get');
             });
+          } else if (sel_id == 2) {
+            //create weights for roads
+            var road_uuid = $('#sel-road-w-layer').find(':selected').val(),
+                w_name = $('#txt-road-w-name').val(),
+                w_type = $('#sel-road-cont-type').find(':selected').val();
+            viz.RoadCreateW(uid, key, road_uuid, w_name, w_type, function(msg) {
+              $('#progress_bar_road').hide();
+              var name = msg.name;
+              var uuid = msg.uuid;
+              OnWeightsCreated(msg.content);
+            });
+                
           }
         },
       },

@@ -20,15 +20,17 @@
 <script src="js/jquery.min.js"></script>
 <script src="js/d3.v3.min.js"></script>
 <script src="js/leaflet.js"></script>
+<script src="js/proj4-src.js"></script>
 <script src="js/jmap.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/d3viz.js"></script>
 
 <script>
-var viz, foreground, lmap, map, uuid; 
+var viz, foreground, lmap, map, uuid, prj; 
 $(document).ready(function() {
   var winID = getParameterByName("wid"),
       json_url = getParameterByName("uuid"),
+      prj_url = getParameterByName("prj"),
       uuid = getParameterByName("uuid"),
       param = getParameterByName("param");
   
@@ -75,11 +77,11 @@ $(document).ready(function() {
     });
   };
   
-    viz.ShowLeafletMap(uuid, L, lmap, {
-      "hratio": 1,
-      "vratio": 1,
-      "alpha": 0.8,
-    }, OnMapShown);
+  viz.ShowLeafletMap(uuid, L, lmap, prj, {
+    "hratio": 1,
+    "vratio": 1,
+    "alpha": 0.9,
+  }, OnMapShown);
   
 });
 

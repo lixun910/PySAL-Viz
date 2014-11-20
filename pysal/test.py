@@ -1,12 +1,19 @@
+def test_webportal():
+    import pysal
+    import d3viz
+    d3viz.setup()
+    d3viz.show_portal()
+    
 def test_d3viz():
     import pysal
     shp = pysal.open(pysal.examples.get_path('NAT.shp'),'r')
     dbf = pysal.open(pysal.examples.get_path('NAT.dbf'),'r')    
 
+    #shp = pysal.open('/Users/xun/github/PySAL-Viz/test_data/man_road.shp','r')
+    #dbf = pysal.open('/Users/xun/github/PySAL-Viz/test_data/man_road.dbf','r')
     import d3viz
     d3viz.setup()
-    d3viz.show_portal()
-    """
+    
     d3viz.init_map(shp)
     d3viz.show_map(shp)
    
@@ -24,7 +31,6 @@ def test_d3viz():
     d3viz.lisa_map(shp, "HR90", lm)
     #select_ids = [i for i,v in enumerate(dbf.by_col["HC60"]) if v <= 0.001]
     #d3viz.select(shp, ids=select_ids)    
-    """
     
 def test_cartodb():
     import pysal
@@ -334,13 +340,10 @@ def test2():
     
     d3viz.lisa_map(shp, "dog_cnt", lm)
     
-def test_webportal():
-    import d3viz
-    d3viz.start_webportal()
     
-test_d3viz()    
+#test_d3viz()    
 #test_network()
 #test_cartodb()
 #test1()
 
-#test_webportal()
+test_webportal()

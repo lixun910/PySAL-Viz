@@ -276,6 +276,46 @@ class AnswerMachine(threading.Thread):
                     print "send back road snapping point"
                     self.ws.send(json.dumps(msg))
                     
+                elif command == "road_create_w":
+                    wid = msg["wid"]
+                    uid = msg['uid'] if 'uid' in msg else CARTODB_DOMAIN 
+                    key = msg['key'] if 'key' in msg else CARTODB_API_KEY
+                    w_type = msg['wtype'] 
+                    w_name = msg['wname'] 
+                    road_uuid = msg['roaduuid'] 
+                    if uid and key:
+                        CARTODB_DOMAIN = uid
+                        CARTODB_API_KEY = key
+                    if CARTODB_API_KEY and CARTODB_DOMAIN:
+                        print "start road create weights"
+                        road_shp = R_SHP_DICT[road_uuid]["shp"]
+                        road_shpFileName = road_shp.dataPath
+                        prefix, shpName = os.path.split(road_shpFileName)
+                        
+                        if 'network' not in R_SHP_DICT[road_uuid]:
+                            road_jsonPath = os.path.join(prefix, road_uuid + ".json")
+                            net = NetworkCluster(road_jsonPath, road_shpFileName)
+                            R_SHP_DICT[road_uuid]['network'] = net
+                        else:
+                            net = R_SHP_DICT[road_uuid]['network']
+                        net.SegmentNetwork(sys.maxint)
+                        net.SEG_LENGTH = 1000 
+                        net.CreateWeights()
+                        w = pysal.W(net.neighbors)
+                        w.name = w_name
+                        if not "weights" in R_SHP_DICT[uuid]:
+                            R_SHP_DICT[uuid]["weights"] = {}
+                        R_SHP_DICT[uuid]["weights"][w_name] = {
+                            'w':w, 'type':w_type
+                        }
+                       
+                    msg = {"command" : "rsp_road_create_w"}
+                    msg['wid'] = wid
+                    msg["content"] = {w_name: {'type':w_type}}
+                    msg["result"] = True
+                    print "send back road create w"
+                    self.ws.send(json.dumps(msg))
+                    
                 elif command == "new_lisa_map":
                     wid = msg["wid"]
                     uuid = msg["uuid"]
@@ -629,7 +669,11 @@ def shp2json(shp, rebuild=False, uuid=None):
                 buffer.append(dict(type="Feature", geometry=geo, properties=atr))
             
         geojson = open(www_path, "w")
-        geojson.write(json.dumps({"type": "FeatureCollection","features": buffer}, ensure_ascii=False))
+        geojson.write(json.dumps({
+            "type": "FeatureCollection",
+            "features": buffer,
+            "projection": R_SHP_DICT[uuid]['prj']
+            }, ensure_ascii=False))
         geojson.close()
     else:
         print "The geojson data has been created before. If you want re-create geojson data, please call shp2json(shp, rebuild=True)."

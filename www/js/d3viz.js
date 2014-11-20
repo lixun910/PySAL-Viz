@@ -32,6 +32,8 @@
     
     this.callback_RoadSegment = undefined;
     this.callback_RoadSnapPoint = undefined;
+    this.callback_RoadCreateW = undefined;
+    
     self = this;
   };
  
@@ -219,6 +221,10 @@
     this.GetJSON( json_url, function(data) {
       if ( typeof data == "string") {
         data = JSON.parse(data);
+      }
+      if ('projection' in data) {
+        var ip = data.projection; 
+        prj = proj4(ip, proj4.defs('WGS84'));
       }
       self.map = new GeoVizMap(new LeafletMap(data, L, lmap, prj), self.canvas, options);
       self.mapDict[uuid] = self.map;
@@ -459,6 +465,21 @@
       setTimeout(function(){self.RoadSnapPoint(uid, key, point_uuid, road_uuid, successHandler)}, 10);
     }
   };  
+  
+  d3viz.prototype.RoadCreateW = function(uid, key, road_uuid, w_name, w_type, successHandler) {
+    var msg = {"command":"road_create_w", "wid":this.id};
+    if (uid) msg["uid"] = uid;
+    if (key) msg["key"] = key;
+    msg["roaduuid"] = road_uuid;
+    msg["wtype"] = w_type;
+    msg["wname"] = w_name;
+    if (this.socket && this.socket.readyState == 1) {
+      this.socket.send(JSON.stringify(msg));
+      this.callback_RoadCreateW = successHandler;
+    } else {
+      setTimeout(function(){self.RoadCreateW(uid, key, road_uuid, w_name, w_type, successHandler)}, 10);
+    }
+  };  
   /**
    * Setup WebSocket Server Communications
   PySal can send a command "add_layer:{uri:abc.shp}" to ws server.
@@ -511,6 +532,8 @@
             self.callback_RoadSegment(msg);
           } else if ( command == "rsp_road_snap_point" && self.id == winID) {
             self.callback_RoadSnapPoint(msg);
+          } else if ( command == "rsp_road_create_w" && self.id == winID) {
+            self.callback_RoadCreateW(msg);
           } 
         } catch (err) {
           console.error("Parsing server msg error:", msg, err);            
