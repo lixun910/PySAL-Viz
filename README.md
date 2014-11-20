@@ -1,7 +1,7 @@
 PySAL-Viz
 =========
 
-NOTE:
+NOTE: (This branch is in "dead" status, all work will be in PySAL-Web) 11/19/2014
 
-1. This only passed the test on Mac. I think it can work on Linux, but not on Windows yet.
-2. The brushing and linking is still under development, and you will see bugs inside.
+If you want to run IPython notebooks: please download the older version: https://github.com/lixun910/PySAL-Viz/archive/187e96f0a5d9c4cc8975e0959c319299dc4053b5.zip
+
